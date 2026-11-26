@@ -743,16 +743,99 @@ const aulaSigKey=()=>'aula-sig-'+UID;
 function aulaPayload(){const out=[];S.groups.filter(g=>!g.ex).forEach(g=>{const m=g.name.trim().match(/^(\d{1,2})\s*[°ºo]?\s*[-–]?\s*(.*)$/),grado=m?m[1]:g.name.trim().slice(0,20),grupo=m?m[2].trim().slice(0,20):'';
   subsOfG(g).filter(sn=>sn!=='Institucional').forEach(sn=>out.push({ref:g.id+'|'+sn,asignatura:sn.slice(0,80),grado,grupo,estudiantes:g.students.map(st=>({ref:st.id,nombre:st.n.slice(0,120)}))}))});return out}
 function aulaSoon(){if(!sb||!UID)return;clearTimeout(aulaT);aulaT=setTimeout(aulaSync,2500)}
-async function aulaSync(force){if(!sb||!UID)return;if(aulaBusy){aulaAgain=true;return}
-  const P=aulaPayload(),anio=+schoolYear().y,sig=JSON.stringify([anio,P]);let last=null;try{last=localStorage.getItem(aulaSigKey())}catch(e){}
-  if(!force&&sig===last)return;aulaBusy=true;
-  try{const {data,error}=await sb.rpc('aula_sincronizar',{p:P,p_anio:anio});if(error)throw error;try{localStorage.setItem(aulaSigKey(),sig)}catch(e){}
-    aulaMsg='';const n=(data.cursos_nuevos||0)+(data.estudiantes_nuevos||0)+(data.trasladados||0);
-    if(force===true){const sin=S.groups.filter(g=>!g.ex&&!subsOfG(g).filter(x=>x!=='Institucional').length).map(g=>g.name);
-      toast(!P.length?'Ningún grupo tiene asignatura todavía: créale su clase en «Nueva clase» para que pase al Aula virtual.':(n?`Aula virtual al día: ${data.cursos_nuevos} curso(s) y ${data.estudiantes_nuevos} estudiante(s) nuevos`:`El Aula virtual ya estaba al día: ${P.length} curso(s)`)+(sin.length?`. Sin asignatura (no pasan): ${sin.join(', ')}`:''))}
-    else if(n&&force!=='silent')toast(`Aula virtual al día: ${data.cursos_nuevos} curso(s) y ${data.estudiantes_nuevos} estudiante(s) nuevos`+(data.trasladados?`, ${data.trasladados} trasladado(s)`:''))}
-  catch(e){console.warn('aula',e);aulaMsg='No se pudo actualizar el Aula virtual. Se intentará de nuevo con el próximo cambio.';if(force===true)toast('No se pudo actualizar el Aula virtual: '+(e.message||'error de conexión'));try{localStorage.removeItem(aulaSigKey())}catch(_){}}
-  finally{aulaBusy=false;const n=$('#aulaSt');if(n)n.textContent=aulaMsg||'Los cursos y estudiantes se pasan solos al Aula virtual: un curso por cada asignatura del grupo.';if(aulaAgain){aulaAgain=false;aulaSoon()}}}
+async function aulaSync(force){if(!sb||!UID)return;if(aulaBusy){aulaAgain=true;if(force)aulaForce=force;return}
+  aulaBusy=true;let ok=true;
+  try{const P=aulaPayload(),anio=+schoolYear().y,sig=JSON.stringify([anio,P]);let last=null;try{last=localStorage.getItem(aulaSigKey())}catch(e){}
+    if(force===true||sig!==last){const {data,error}=await sb.rpc('aula_sincronizar',{p:P,p_anio:anio});if(error)throw error;try{localStorage.setItem(aulaSigKey(),sig)}catch(e){}
+      const n=(data.cursos_nuevos||0)+(data.estudiantes_nuevos||0)+(data.trasladados||0);if(n||data.desactivados)RC=null;
+      if(force===true){const sin=S.groups.filter(g=>!g.ex&&!subsOfG(g).filter(x=>x!=='Institucional').length).map(g=>g.name);
+        toast(!P.length?'Ningún grupo tiene asignatura todavía: créale su clase en «Nueva clase» para que pase al Aula virtual.':(n?`Aula virtual al día: ${data.cursos_nuevos} curso(s) y ${data.estudiantes_nuevos} estudiante(s) nuevos`:`El Aula virtual está al día: ${P.length} curso(s) con sus notas y asistencia`)+(sin.length?`. Sin asignatura (no pasan): ${sin.join(', ')}`:''))}
+      else if(n&&force!=='silent')toast(`Aula virtual al día: ${data.cursos_nuevos} curso(s) y ${data.estudiantes_nuevos} estudiante(s) nuevos`+(data.trasladados?`, ${data.trasladados} trasladado(s)`:''))}
+    await shareSync(!RC||!!force);aulaMsg=''}
+  catch(e){ok=false;console.warn('aula',e);RC=null;aulaMsg='No se pudo actualizar el Aula virtual. Se intentará de nuevo con el próximo cambio.';if(force===true)toast('No se pudo actualizar el Aula virtual: '+(e.message||'error de conexión'));try{localStorage.removeItem(aulaSigKey())}catch(_){}}
+  finally{aulaBusy=false;const n=$('#aulaSt');if(n)n.textContent=aulaMsg||'Los cursos, estudiantes, notas y asistencia se comparten con el Aula virtual.';
+    if(aulaAgain){aulaAgain=false;const f=aulaForce;aulaForce=null;f?aulaSync(f):aulaSoon()}}}
+/* notas, actividades, asistencia y perfil compartidos con el Aula virtual */
+let RC=null,aulaForce=null,lastFull=0;
+const CATMAP={con:'conocimiento',eva:'examen',pro:'procedimental',het:'hetero',aut:'auto',coe:'co'},CATINV={};for(const k in CATMAP)CATINV[CATMAP[k]]=k;
+const yPers=y=>S.periods.filter(x=>x.start.slice(0,4)===String(y)).sort((a,b)=>a.start<b.start?-1:1);
+function pnumOf(pid){const p=per(pid);if(!p)return null;const ps=yPers(p.start.slice(0,4)),i=ps.findIndex(x=>x.id===pid);return i>=0&&i<3?{n:i+1,y:+p.start.slice(0,4)}:null}
+const aKey=o=>o?JSON.stringify([o.ref,o.p,o.t,o.c,o.o||'']):undefined,nKey=v=>v==null?undefined:String(Math.round(+v*10)/10);
+const baseKey=()=>'aula-base2-'+UID;
+const chk=async q=>{const {error}=await q;if(error)throw error};
+async function allRows(build){let out=[],from=0;for(;;){const {data,error}=await build().range(from,from+999);if(error)throw error;out=out.concat(data||[]);if(!data||data.length<1000)break;from+=1000}return out}
+async function remoteFetch(){
+  const cur=await allRows(()=>sb.from('aula_cursos').select('id,agenda_ref,anio').not('agenda_ref','is',null));
+  const C={},CI={};cur.forEach(c=>{C[c.agenda_ref]={id:c.id,anio:c.anio};CI[c.id]=c.agenda_ref});
+  const ids=cur.map(c=>c.id);let ests=[],acts=[],notas=[];
+  for(let i=0;i<ids.length;i+=100){const L=ids.slice(i,i+100);
+    ests=ests.concat(await allRows(()=>sb.from('aula_estudiantes').select('id,curso_id,agenda_ref').in('curso_id',L)));
+    acts=acts.concat(await allRows(()=>sb.from('aula_actividades').select('id,curso_id,periodo,componente,titulo,estudiante_id,agenda_ref').in('curso_id',L)))}
+  const E={},EI={};ests.forEach(e=>{if(e.agenda_ref){E[e.curso_id+'|'+e.agenda_ref]=e.id;EI[e.id]=e.agenda_ref}});
+  for(const a of acts)if(!a.agenda_ref){a.agenda_ref='w'+a.id.replace(/-/g,'');await chk(sb.from('aula_actividades').update({agenda_ref:a.agenda_ref}).eq('id',a.id))}
+  const A={},AI={},ar={};acts.forEach(a=>{if(a.estudiante_id&&!EI[a.estudiante_id])return;ar[a.id]=a.agenda_ref;AI[a.agenda_ref]={id:a.id,curso_id:a.curso_id};
+    A[a.agenda_ref]={ref:CI[a.curso_id],p:a.periodo,t:a.titulo,c:a.componente,o:a.estudiante_id?EI[a.estudiante_id]:''}});
+  const aids=Object.keys(ar);
+  for(let i=0;i<aids.length;i+=100){const L=aids.slice(i,i+100);notas=notas.concat(await allRows(()=>sb.from('aula_notas').select('actividad_id,estudiante_id,nota').in('actividad_id',L)))}
+  const N={};notas.forEach(n=>{const st=EI[n.estudiante_id];if(st&&ar[n.actividad_id])N[ar[n.actividad_id]+'|'+st]=Number(n.nota)});
+  const T={};(await allRows(()=>sb.from('aula_asistencia').select('estudiante_ref,fecha,marca'))).forEach(t=>T[t.estudiante_ref+'|'+t.fecha]=t.marca);
+  return {C,E,AI,A,N,T}}
+function localSnap(C){const A={},N={},act=new Set();
+  for(const k in S.evals){const a=k.indexOf('|'),pid=k.slice(0,a),ref=k.slice(a+1);if(!C[ref])continue;const pn=pnumOf(pid);if(!pn||pn.y!==+C[ref].anio)continue;const sh=S.evals[k];
+    const ids=new Set();sh.cols.forEach(c=>{if(!CATMAP[c.cat])return;ids.add(c.id);A[c.id]={ref,p:pn.n,t:(String(c.n||'').trim()||'Actividad').slice(0,120),c:CATMAP[c.cat],o:c.only||''}});
+    for(const m in sh.marks){const v=sh.marks[m];if(v==null||v===''||isNaN(+v))continue;const i=m.indexOf('|'),sid=m.slice(0,i),cid=m.slice(i+1);if(!ids.has(cid))continue;act.add(cid);N[cid+'|'+sid]=+v}}
+  const T={};S.groups.forEach(g=>{if(g.ex)return;Object.keys(S.att).forEach(k=>{const i=k.indexOf('|');if(k.slice(0,i)!==g.id)return;const ds=k.slice(i+1),o=S.att[k];for(const sid in o)if(o[sid])T[sid+'|'+ds]=o[sid]})});
+  return {A,N,T,act}}
+function merge3(L,R,B,enc,incl){const keys=new Set([...Object.keys(L),...Object.keys(R),...Object.keys(B)]),F={},toL=[],toR=[];
+  keys.forEach(k=>{const l=incl&&!incl(k)?undefined:L[k],r=R[k],el=enc(l),er=enc(r),eb=enc(B[k]);let v;
+    if(el===er)v=l!==undefined?l:r;else if(el===eb){v=r;toL.push([k,r])}else{v=l;toR.push([k,l])}
+    if(enc(v)!==undefined)F[k]=v});return {F,toL,toR}}
+async function shareSync(full){
+  if(full||!RC){RC=await remoteFetch();lastFull=Date.now()}
+  const R=RC,L=localSnap(R.C);let B={A:{},N:{}};try{B=JSON.parse(localStorage.getItem(baseKey())||'null')||B}catch(e){}
+  const mA=merge3(L.A,R.A,B.A||{},aKey,k=>L.act.has(k)||k in R.A||k in (B.A||{}));
+  const goneA=new Set([...mA.toR,...mA.toL].filter(([k,v])=>v===undefined).map(([k])=>k));
+  const mN=merge3(L.N,R.N,B.N||{},nKey);
+  // al Aula
+  const skipA=new Set();
+  const del=mA.toR.filter(([k,v])=>v===undefined&&R.AI[k]).map(([k])=>R.AI[k].id);
+  for(let i=0;i<del.length;i+=100)await chk(sb.from('aula_actividades').delete().in('id',del.slice(i,i+100)));
+  for(const [k] of mA.toR.filter(([k,v])=>v===undefined))delete R.AI[k];
+  for(const [k,v] of mA.toR){if(v===undefined)continue;const cur=R.C[v.ref],est=cur&&v.o?R.E[cur.id+'|'+v.o]:null;if(!cur||(v.o&&!est)){skipA.add(k);continue}
+    const row={curso_id:cur.id,periodo:v.p,componente:v.c,titulo:v.t,estudiante_id:est||null};
+    if(R.AI[k]){await chk(sb.from('aula_actividades').update(row).eq('id',R.AI[k].id));R.AI[k].curso_id=cur.id}
+    else{const {data,error}=await sb.from('aula_actividades').insert({...row,agenda_ref:k}).select('id').single();if(error)throw error;R.AI[k]={id:data.id,curso_id:cur.id}}}
+  skipA.forEach(k=>delete mA.F[k]);
+  const ups=[],dels={},skipN=new Set();
+  for(const [k,v] of mN.toR){const i=k.lastIndexOf('|'),cid=k.slice(0,i),sid=k.slice(i+1);if(goneA.has(cid))continue;const a=R.AI[cid],est=a&&R.E[a.curso_id+'|'+sid];
+    if(!a||!est){skipN.add(k);continue}
+    if(v===undefined)(dels[a.id]=dels[a.id]||[]).push(est);else{const n=Math.round(+v*10)/10;if(n>=0&&n<=100)ups.push({actividad_id:a.id,estudiante_id:est,nota:n});else skipN.add(k)}}
+  for(let i=0;i<ups.length;i+=500)await chk(sb.from('aula_notas').upsert(ups.slice(i,i+500),{onConflict:'actividad_id,estudiante_id'}));
+  for(const aid in dels)await chk(sb.from('aula_notas').delete().eq('actividad_id',aid).in('estudiante_id',dels[aid]));
+  skipN.forEach(k=>delete mN.F[k]);
+  // a la Agenda
+  let ch=0;if(mA.toL.length||mN.toL.length){const idx={};for(const k in S.evals)S.evals[k].cols.forEach(c=>idx[c.id]={sh:S.evals[k],c});
+    const sheetFor=(ref,p)=>{const cur=R.C[ref],pid=cur&&(yPers(cur.anio)[p-1]||{}).id;if(!pid)return null;const k=pid+'|'+ref;return S.evals[k]||(S.evals[k]={cols:[],marks:{}})};
+    for(const [k,v] of mA.toL){const f=idx[k];
+      if(v===undefined){if(f){f.sh.cols=f.sh.cols.filter(x=>x!==f.c);for(const m in f.sh.marks)if(m.endsWith('|'+k))delete f.sh.marks[m];delete idx[k];ch++}continue}
+      const sh=sheetFor(v.ref,v.p);if(!sh){delete mA.F[k];continue}const cat=CATINV[v.c]||'con';
+      if(f){f.c.n=v.t;f.c.cat=cat;if(v.o)f.c.only=v.o;else delete f.c.only;
+        if(f.sh!==sh){f.sh.cols=f.sh.cols.filter(x=>x!==f.c);sh.cols.push(f.c);for(const m in f.sh.marks)if(m.endsWith('|'+k)){sh.marks[m]=f.sh.marks[m];delete f.sh.marks[m]}f.sh=sh}}
+      else{const c={id:k,n:v.t,cat};if(v.o)c.only=v.o;sh.cols.push(c);idx[k]={sh,c}}ch++}
+    for(const [k,v] of mN.toL){const i=k.lastIndexOf('|'),cid=k.slice(0,i),sid=k.slice(i+1),f=idx[cid];if(!f){delete mN.F[k];continue}
+      if(v===undefined)delete f.sh.marks[sid+'|'+cid];else f.sh.marks[sid+'|'+cid]=+v;ch++}}
+  // asistencia (la Agenda manda)
+  const tu=[],td={};for(const k in L.T)if(R.T[k]!==L.T[k]){const i=k.lastIndexOf('|'),ds=k.slice(i+1),pp=perOf(ds),pn=pp&&pnumOf(pp.id);tu.push({estudiante_ref:k.slice(0,i),fecha:ds,marca:L.T[k],periodo:pn?pn.n:null})}
+  for(const k in R.T)if(!(k in L.T)){const i=k.lastIndexOf('|');(td[k.slice(0,i)]=td[k.slice(0,i)]||[]).push(k.slice(i+1))}
+  for(let i=0;i<tu.length;i+=500)await chk(sb.from('aula_asistencia').upsert(tu.slice(i,i+500),{onConflict:'docente,estudiante_ref,fecha'}));
+  for(const r in td)for(let i=0;i<td[r].length;i+=200)await chk(sb.from('aula_asistencia').delete().eq('estudiante_ref',r).in('fecha',td[r].slice(i,i+200)));
+  // perfil
+  const nom=[S.me.nombre,S.me.apellidos].filter(Boolean).join(' ').trim(),psig=JSON.stringify([nom,S.me.inst||'']);let lp=null;try{lp=localStorage.getItem('aula-perf-'+UID)}catch(e){}
+  if(nom&&psig!==lp){const row={nombre:nom.slice(0,120)};if(S.me.inst)row.colegio=String(S.me.inst).slice(0,120);await chk(sb.from('aula_perfil').update(row).eq('docente',UID));try{localStorage.setItem('aula-perf-'+UID,psig)}catch(e){}}
+  RC={...R,A:mA.F,N:mN.F,T:{...L.T}};try{localStorage.setItem(baseKey(),JSON.stringify({A:mA.F,N:mN.F}))}catch(e){}
+  if(ch){commit(true);const ae=document.activeElement;if(!document.querySelector('dialog[open]')&&!(ae&&ae.matches('textarea,input:not([type]),input[type=text],input[type=search]')))render()}}
+const aulaFull=()=>{if(UID&&sb&&Date.now()-lastFull>20000)aulaSync('full')};
+addEventListener('focus',aulaFull);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')aulaFull()});
 async function publish(){if(!sb||!UID||!dirty)return;if(saving){again=true;return}saving=true;dirty=false;setSave('saving');
   const now=new Date().toISOString();
   try{let r;
@@ -981,7 +1064,7 @@ function rClases(){if(!grp(U.g))U.g=(sortG(S.groups)[0]||{}).id||'';const g=grp(
   <label class="dnl">Grupo<input class="inp" id="cNg" list="cNgL" placeholder="Ej. 9°A" maxlength="30"></label><datalist id="cNgL">${S.groups.map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
   <button class="btn pri" id="cNb">Crear clase</button>
   ${free.length?`<p class="note">Asignaturas de Mis datos que aún no tienen grupo: <b>${free.map(x=>esc(x.n)).join(', ')}</b>.</p>`:''}</section>
-  <section class="box" style="background:var(--p4)"><h3>Aula virtual</h3><p class="note">Cada clase (grupo + asignatura) se pasa sola al Aula virtual con sus estudiantes. Si no la ves allá, toca el botón.</p><button class="btn" id="aulaNow">Pasar al Aula virtual ahora</button></section>
+  <section class="box" style="background:var(--p4)"><h3>Aula virtual</h3><p class="note">Cada clase (grupo + asignatura) se comparte con el Aula virtual: estudiantes, actividades, notas y asistencia. Lo que califiques en el Aula aparece aquí al volver a esta pestaña. Si algo no se ve, toca el botón.</p><button class="btn" id="aulaNow">Pasar al Aula virtual ahora</button></section>
   <section class="box"><h3>Mis grupos</h3><input class="inp" id="cQ" type="search" placeholder="Buscar grupo o estudiante" aria-label="Buscar grupo o estudiante" value="${esc(U.cq||'')}"><div id="cGl">${cList()}</div></section>
   <section class="box" style="background:var(--p0)"><h3>Importar estudiantes</h3>
   <p class="note"><b>Lo más fácil:</b> descarga la plantilla, escribe a tus estudiantes con su grupo y súbela. Los grupos se crean solos. También sirve cualquier Excel o CSV con una columna de nombre y otra de grupo, o una hoja por grupo.</p>
@@ -995,7 +1078,7 @@ function rClases(){if(!grp(U.g))U.g=(sortG(S.groups)[0]||{}).id||'';const g=grp(
   if(!g){$('#cMain').innerHTML='<p class="empty"><b>Aún no tienes clases con grupo.</b> En «Nueva clase» (a la izquierda) elige la asignatura, escribe el grupo, por ejemplo 9°A, y toca «Crear clase». Después podrás agregar los estudiantes aquí. También puedes subir todas tus listas con «Importar estudiantes», o programar tus clases en el <a href="#horario">Horario</a>: cada grupo del horario aparece aquí solo.</p>';return}
   const info=classInfo(g);
   $('#cMain').innerHTML=`<div class="tbar"><h3>${esc(g.name)} · ${g.students.length} ${g.students.length===1?'estudiante':'estudiantes'}</h3></div>
-  <p class="note" id="aulaSt" style="margin:-4px 0 10px">${aulaMsg?esc(aulaMsg):subsOfG(g).length?'Los cursos y estudiantes se pasan solos al Aula virtual: un curso por cada asignatura del grupo.':'Para que este grupo aparezca en el Aula virtual, créale una clase con su asignatura en «Nueva clase».'}</p>
+  <p class="note" id="aulaSt" style="margin:-4px 0 10px">${aulaMsg?esc(aulaMsg):subsOfG(g).length?'Los cursos, estudiantes, notas y asistencia se comparten con el Aula virtual (un curso por cada asignatura del grupo).':'Para que este grupo aparezca en el Aula virtual, créale una clase con su asignatura en «Nueva clase».'}</p>
   <div class="cinfo" style="margin-bottom:14px">${info||'<span class="note">Este grupo no tiene clases en tu horario.</span>'}</div>
   ${g.students.length?`<table class="ctab"><thead><tr><th></th><th>Estudiante</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${g.students.map((st,i)=>`<tr${st.id===U.chl?' class="hl"':''}><td class="n">${i+1}</td><td>${esc(st.n)}</td><td class="act"><button class="btn sm" data-crn="${esc(st.id)}">Renombrar</button> <button class="btn sm" data-cmv="T|${esc(st.id)}">Trasladar</button> <button class="btn sm danger" data-cmv="R|${esc(st.id)}">Retirar</button></td></tr>`).join('')}</tbody></table>`:'<p class="empty">Este grupo aún no tiene estudiantes. Agrégalos abajo o con «Importar estudiantes».</p>'}
   <section class="box" style="margin-top:18px"><h3>Agregar estudiantes a ${esc(g.name)}</h3><p class="note">Un nombre por línea; puedes pegarlos desde Excel o desde la plataforma. Los que ya están no se repiten.</p>
@@ -1179,11 +1262,12 @@ function rEvaluaciones(){if(!grp(U.g))U.g=(S.groups[0]||{}).id||'';if(!per(U.ep)
   if(!g.students.length){$('#eMain').innerHTML=evalBar()+'<p class="empty">Este grupo no tiene estudiantes. Agrégalos en <a href="#clases">Clases</a>.</p>';return}
   if(U.ev==='anio')return rYear(g);
   const sh=sheet(),W=cw(),C=S.cats;
-  const head1=C.map((c,i)=>`<th class="cat" colspan="${c.multi?colsOf(sh,c.k).length+1:1}" style="--p:${PV(i)}"><b>${esc(c.n)}</b> · ${c.w}%${c.multi?`<br><button class="btn sm" data-eadd="${c.k}">+ Actividad</button>`:''}</th>`).join('');
-  const head2=C.map(c=>c.multi?colsOf(sh,c.k).map(x=>`<th><input class="ecn" data-ecn="${esc(x.id)}" value="${esc(x.n)}" aria-label="Nombre de la actividad">${x.only?`<small class="only">solo ${esc((g.students.find(s=>s.id===x.only)||{n:'un estudiante'}).n)}</small>`:''}<span class="ew"><button data-ecd="${esc(x.id)}" aria-label="Quitar ${esc(x.n)}">Quitar</button></span></th>`).join('')+'<th class="pr">Promedio</th>':'<th class="pr">Nota</th>').join('');
+  const MM=c=>c.multi||colsOf(sh,c.k).length>1;
+  const head1=C.map((c,i)=>`<th class="cat" colspan="${MM(c)?colsOf(sh,c.k).length+1:1}" style="--p:${PV(i)}"><b>${esc(c.n)}</b> · ${c.w}%${c.multi?`<br><button class="btn sm" data-eadd="${c.k}">+ Actividad</button>`:''}</th>`).join('');
+  const head2=C.map(c=>MM(c)?colsOf(sh,c.k).map(x=>`<th><input class="ecn" data-ecn="${esc(x.id)}" value="${esc(x.n)}" aria-label="Nombre de la actividad">${x.only?`<small class="only">solo ${esc((g.students.find(s=>s.id===x.only)||{n:'un estudiante'}).n)}</small>`:''}<span class="ew"><button data-ecd="${esc(x.id)}" aria-label="Quitar ${esc(x.n)}">Quitar</button></span></th>`).join('')+'<th class="pr">Promedio</th>':'<th class="pr">Nota</th>').join('');
   const cell=(s,x)=>!forStu(x,s.id)?'<td class="na" title="Actividad de otro estudiante">—</td>':`<td><input inputmode="decimal" data-em="${esc(s.id)}|${esc(x.id)}" value="${f1(sh.marks[s.id+'|'+x.id])}"${isActive(sh,x.id)?' placeholder="0"':''} aria-label="${esc(s.n)}, ${esc(x.n)}"></td>`;
-  const body=g.students.map((s,i)=>{const fv=finalOf(sh,s.id);return `<tr><th class="stu">${i+1}. ${esc(s.n)}</th>${C.map(c=>c.multi?colsOf(sh,c.k).map(x=>cell(s,x)).join('')+`<td class="pr" data-cp="${esc(s.id)}|${c.k}">${f1(catAvg(sh,s.id,c.k))}</td>`:colsOf(sh,c.k).slice(0,1).map(x=>cell(s,x)).join('')).join('')}<td class="fin" data-ef="${esc(s.id)}">${f1(fv)}</td><td data-ed="${esc(s.id)}">${dspTag(fv)}</td></tr>`}).join('');
-  const foot=C.map(c=>c.multi?colsOf(sh,c.k).map(x=>`<td data-ea="${esc(x.id)}">${f1(isActive(sh,x.id)?avgOf(stOf(g,x),s=>sh.marks[s.id+'|'+x.id]??0):null)}</td>`).join('')+`<td data-ea="cp|${c.k}">${f1(avgOf(g.students,s=>catAvg(sh,s.id,c.k)))}</td>`:colsOf(sh,c.k).slice(0,1).map(x=>`<td data-ea="${esc(x.id)}">${f1(isActive(sh,x.id)?avgOf(stOf(g,x),s=>sh.marks[s.id+'|'+x.id]??0):null)}</td>`).join('')).join('');
+  const body=g.students.map((s,i)=>{const fv=finalOf(sh,s.id);return `<tr><th class="stu">${i+1}. ${esc(s.n)}</th>${C.map(c=>MM(c)?colsOf(sh,c.k).map(x=>cell(s,x)).join('')+`<td class="pr" data-cp="${esc(s.id)}|${c.k}">${f1(catAvg(sh,s.id,c.k))}</td>`:colsOf(sh,c.k).slice(0,1).map(x=>cell(s,x)).join('')).join('')}<td class="fin" data-ef="${esc(s.id)}">${f1(fv)}</td><td data-ed="${esc(s.id)}">${dspTag(fv)}</td></tr>`}).join('');
+  const foot=C.map(c=>MM(c)?colsOf(sh,c.k).map(x=>`<td data-ea="${esc(x.id)}">${f1(isActive(sh,x.id)?avgOf(stOf(g,x),s=>sh.marks[s.id+'|'+x.id]??0):null)}</td>`).join('')+`<td data-ea="cp|${c.k}">${f1(avgOf(g.students,s=>catAvg(sh,s.id,c.k)))}</td>`:colsOf(sh,c.k).slice(0,1).map(x=>`<td data-ea="${esc(x.id)}">${f1(isActive(sh,x.id)?avgOf(stOf(g,x),s=>sh.marks[s.id+'|'+x.id]??0):null)}</td>`).join('')).join('');
   $('#eMain').innerHTML=evalBar()+`<div class="tbar"><button class="btn pri" data-xls="per">Descargar Excel del periodo</button><button class="btn" id="eCopy">Copiar notas</button><span class="note${W!==100?' late':''}">${W===100?'Los porcentajes suman 100 %.':`Los porcentajes suman ${W} %: la definitiva se calcula sobre ${W}. Revísalos en «Escala y ponderación».`}</span></div>
   <div class="scroll"><table class="ev"><thead><tr><th class="stu" rowspan="2">Estudiante</th>${head1}<th rowspan="2">Definitiva</th><th rowspan="2">Desempeño</th></tr><tr>${head2}</tr></thead>
   <tbody>${body}</tbody><tfoot><tr><td style="text-align:left">Promedio del grupo</td>${foot}<td data-ea="fin">${f1(avgOf(g.students,s=>finalOf(sh,s.id)))}</td><td></td></tr></tfoot></table></div>
