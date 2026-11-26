@@ -11,6 +11,11 @@ create table if not exists public.agendas (
 
 alter table public.agendas enable row level security;
 
+-- Permiso de acceso por la API solo para usuarios con sesión (en proyectos nuevos no viene por defecto)
+grant usage on schema public to authenticated;
+grant select, insert, update on table public.agendas to authenticated;
+revoke all on table public.agendas from anon;
+
 -- Cada docente solo puede ver, crear y modificar su propia agenda
 drop policy if exists "agenda: ver la propia" on public.agendas;
 create policy "agenda: ver la propia" on public.agendas
