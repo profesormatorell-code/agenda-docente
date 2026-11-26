@@ -331,12 +331,12 @@ table.at,table.ev{border-collapse:collapse;font-size:14px}
 .chips button.on.sub{border-left-color:var(--c)}
 .chips .none{font-size:14px;color:var(--mute)}
 #hkC:not([hidden]),#hkS:not([hidden]){display:grid;gap:10px}
-.hc.spc{background:repeating-linear-gradient(135deg,var(--card) 0 8px,var(--pane) 8px 9px);border-left-color:#7a8199;border-style:solid}
-.hc.spc b{color:var(--ink)}
-.wsp{margin:0 8px;border:1px dashed var(--line);border-radius:8px;padding:5px 8px;font-size:13px;display:grid;gap:1px;background:var(--pane)}
-.wsp time{color:var(--mute);font-size:12px}.wsp b{font-size:13px;line-height:1.25}
-.dsp-card{border:1px dashed var(--line);border-radius:12px;background:var(--pane);padding:12px 14px;display:grid;grid-template-columns:6.8em minmax(0,1fr);gap:2px 14px;align-items:center}
-.dsp-card time{font-size:14px;color:var(--mute);white-space:nowrap}.dsp-card b{font:500 16px Lexend,system-ui,sans-serif}.dsp-card small{grid-column:2;color:var(--mute);font-size:13px}
+.hc.spc{background:repeating-linear-gradient(135deg,var(--card) 0 8px,color-mix(in srgb,var(--c) 12%,var(--card)) 8px 10px);border-style:solid}
+.hc.spc b{color:var(--c)}
+.wsp{margin:0 8px;border:1px dashed var(--line);border-left:4px solid var(--c);border-radius:8px;padding:5px 8px;font-size:13px;display:grid;gap:1px;background:color-mix(in srgb,var(--c) 9%,var(--card))}
+.wsp time{color:var(--mute);font-size:12px}.wsp b{font-size:13px;line-height:1.25;color:var(--c)}
+.dsp-card{border:1px dashed var(--line);border-left:6px solid var(--c);border-radius:12px;background:color-mix(in srgb,var(--c) 9%,var(--card));padding:12px 14px;display:grid;grid-template-columns:6.8em minmax(0,1fr);gap:2px 14px;align-items:center}
+.dsp-card time{font-size:14px;color:var(--mute);white-space:nowrap}.dsp-card b{font:500 16px Lexend,system-ui,sans-serif;color:var(--c)}.dsp-card small{grid-column:2;color:var(--mute);font-size:13px}
 /* registros y notas */
 .rtool{display:flex;gap:12px;align-items:center;margin-bottom:14px;flex-wrap:wrap}
 .rtool input{flex:1 1 220px;min-height:44px;font-size:16px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
@@ -783,6 +783,8 @@ function renderFilters(){
 
 /* ===== utilidades de horario y planeación ===== */
 const dIdx=ds=>(pd(ds).getDay()+6)%7;
+const SPC={'reunión de nivel':'#4c56c4','atención a padres':'#c0396b','trabajo pedagógico':'#0e8a7a','consejo académico':'#d9661f','reunión de área':'#3f8f3a'},SPP=['#4c56c4','#c0396b','#0e8a7a','#d9661f','#3f8f3a','#9b3fa8','#8a5a2b','#2f7fb0'];
+const spC=v=>{const k=String(v||'').trim().toLowerCase();if(SPC[k])return SPC[k];let h=0;for(const ch of k)h=(h*31+ch.charCodeAt(0))>>>0;return SPP[h%SPP.length]};
 function spacesOf(ds){const k=dIdx(ds);if(k>4)return[];return S.sched.blocks.filter(b=>b.t!=='pausa').map(b=>({b,c:S.sched.cells[b.id+'|'+k]})).filter(x=>x.c&&x.c.sp)}
 function classesOf(ds){const k=dIdx(ds);if(k>4)return[];return S.sched.blocks.filter(b=>b.t!=='pausa').map(b=>({b,c:S.sched.cells[b.id+'|'+k]})).filter(x=>x.c&&x.c.s)}
 function hasPlan(p){return !!(p&&(p.tema||p.obj||p.desa||(p.files&&p.files.length)))}
@@ -815,20 +817,20 @@ const row=i=>`<li class="rw" data-id="${esc(i.id)}" style="--c:${esc(subj(i.s).c
 /* ===== Mis datos ===== */
 const MEF=[['nombre','Nombre'],['apellidos','Apellidos'],['tel','Teléfono'],['correo','Correo electrónico'],['inst','Institución'],['sede','Sede',0,['A','B']],['jornada','Jornada',0,['Mañana','Tarde','Media']],['nivel','Nivel',0,['Primera Infancia','Primaria','Bachillerato','Media']],['otros','Otros datos',1]];
 function rDatos(){$('#datosF').innerHTML=MEF.map(([k,l,w,o],i)=>`<label class="dl${w?' w':''}" style="--p:${PV(i)}"><span>${l}</span>${o?`<select data-me="${k}"><option value="">Elegir…</option>${o.map(v=>`<option${S.me[k]===v?' selected':''}>${esc(v)}</option>`).join('')}</select>`:w?`<textarea data-me="${k}" rows="4">${esc(S.me[k]||'')}</textarea>`:`<input data-me="${k}" value="${esc(S.me[k]||'')}" maxlength="120"${k==='correo'?' type="email"':k==='tel'?' type="tel"':''}>`}</label>`).join('');
-  $('#subsL').innerHTML=S.subjects.map(s=>`<span class="sp" style="--c:${esc(s.c)}">${esc(s.n)}<button data-rsub="${esc(s.n)}" aria-label="Quitar ${esc(s.n)}">×</button></span>`).join('')+'<span class="addrow"><input id="nSub" placeholder="Nueva asignatura" maxlength="30" aria-label="Nueva asignatura"><button class="btn" id="aSub">Agregar</button></span>';$('#spsL').innerHTML=S.spaces.map(v=>`<span class="sp" style="--c:#5d6579">${esc(v)}<button data-rsp="${esc(v)}" aria-label="Quitar ${esc(v)}">×</button></span>`).join('')+'<span class="addrow"><input id="nSp" placeholder="Nuevo espacio" maxlength="40" aria-label="Nuevo espacio"><button class="btn" id="aSp">Agregar</button></span>';rEndYear()}
+  $('#subsL').innerHTML=S.subjects.map(s=>`<span class="sp" style="--c:${esc(s.c)}">${esc(s.n)}<button data-rsub="${esc(s.n)}" aria-label="Quitar ${esc(s.n)}">×</button></span>`).join('')+'<span class="addrow"><input id="nSub" placeholder="Nueva asignatura" maxlength="30" aria-label="Nueva asignatura"><button class="btn" id="aSub">Agregar</button></span>';$('#spsL').innerHTML=S.spaces.map(v=>`<span class="sp" style="--c:${spC(v)}">${esc(v)}<button data-rsp="${esc(v)}" aria-label="Quitar ${esc(v)}">×</button></span>`).join('')+'<span class="addrow"><input id="nSp" placeholder="Nuevo espacio" maxlength="40" aria-label="Nuevo espacio"><button class="btn" id="aSp">Agregar</button></span>';rEndYear()}
 
 /* ===== Horario ===== */
 function rHorario(){const B=S.sched.blocks;
   let h='<table class="hor"><thead><tr><th>Hora</th>'+DAYS.map(d=>`<th>${d}</th>`).join('')+'</tr></thead><tbody>';
   B.forEach(b=>{if(b.t==='pausa'){h+=`<tr class="pausa"><td class="hr">${esc(b.ini)}</td><td colspan="5">${esc(b.lbl||'Descanso')} · ${esc(b.ini)} – ${esc(b.fin)}</td></tr>`;return}
     h+=`<tr><td class="hr">${esc(b.ini)}<br>${esc(b.fin)}</td>`+DAYS.map((d,k)=>{const c=S.sched.cells[b.id+'|'+k];
-      return c&&c.sp?`<td><button class="hc spc" data-hc="${esc(b.id)}|${k}"><b>${esc(c.sp)}</b><span>${esc(c.r||'Otro espacio')}</span></button></td>`:c&&c.s?`<td><button class="hc" data-hc="${esc(b.id)}|${k}" style="--c:${esc(subj(c.s).c)}"><b>${esc(c.s)}</b><span>${esc(c.g||'')}${c.r?' · '+esc(c.r):''}</span></button></td>`
+      return c&&c.sp?`<td><button class="hc spc" data-hc="${esc(b.id)}|${k}" style="--c:${spC(c.sp)}"><b>${esc(c.sp)}</b><span>${esc(c.r||'Otro espacio')}</span></button></td>`:c&&c.s?`<td><button class="hc" data-hc="${esc(b.id)}|${k}" style="--c:${esc(subj(c.s).c)}"><b>${esc(c.s)}</b><span>${esc(c.g||'')}${c.r?' · '+esc(c.r):''}</span></button></td>`
         :`<td><button class="hc empty" data-hc="${esc(b.id)}|${k}" aria-label="Asignar clase o espacio el ${d} a las ${esc(b.ini)}">+</button></td>`}).join('')+'</tr>'});
   $('#hgrid').innerHTML=B.length?h+'</tbody></table>':'<p class="empty">Añade franjas horarias para armar tu horario.</p>';
   const tot={},ids=new Set(B.filter(b=>b.t!=='pausa').map(b=>b.id));
   Object.entries(S.sched.cells).forEach(([k,c])=>{if(c&&c.s&&ids.has(k.split('|')[0])&&c.s!=='Institucional')tot[c.s]=(tot[c.s]||0)+1});
   const n=Object.values(tot).reduce((a,b)=>a+b,0),nsp=Object.entries(S.sched.cells).filter(([k,c])=>c&&c.sp&&ids.has(k.split('|')[0])).length;
-  $('#hload').innerHTML=`<span><b>${n}</b> horas de clase a la semana</span>`+Object.entries(tot).map(([s,v])=>`<span class="sp" style="--c:${esc(subj(s).c)};padding-right:12px">${esc(s)} · ${v} h</span>`).join('')+(nsp?`<span class="sp" style="--c:#5d6579;padding-right:12px">Otros espacios · ${nsp} h</span>`:'');
+  $('#hload').innerHTML=`<span><b>${n}</b> horas de clase a la semana</span>`+Object.entries(tot).map(([s,v])=>`<span class="sp" style="--c:${esc(subj(s).c)};padding-right:12px">${esc(s)} · ${v} h</span>`).join('')+(nsp?(()=>{const t={};Object.entries(S.sched.cells).forEach(([k,c])=>{if(c&&c.sp&&ids.has(k.split('|')[0]))t[c.sp]=(t[c.sp]||0)+1});return Object.entries(t).map(([v,h])=>`<span class="sp" style="--c:${spC(v)};padding-right:12px">${esc(v)} · ${h} h</span>`).join('')})():'');
   $('#hblocks').innerHTML=B.map((b,i)=>`<div class="blk"><input type="time" data-bi="${i}" data-bf="ini" value="${esc(b.ini)}" aria-label="Inicio"><input type="time" data-bi="${i}" data-bf="fin" value="${esc(b.fin)}" aria-label="Fin"><select data-bi="${i}" data-bf="t" aria-label="Tipo"><option value="clase"${b.t!=='pausa'?' selected':''}>Clase</option><option value="pausa"${b.t==='pausa'?' selected':''}>Descanso</option></select><button class="icon" data-bdel="${i}" aria-label="Quitar franja de ${esc(b.ini)}">×</button></div>`).join('');
   const f=S.sched.file;
   $('#hfile').innerHTML=f?`${/^image\//.test(f.type)?`<a href="#" data-fpath="${esc(f.id)}" target="_blank" rel="noopener"><img class="himg" data-fpath="${esc(f.id)}" alt="Horario oficial"></a>`:''}<div class="flist">${fileChip(f,'sched')}</div>`:'<p class="note">Aún no has subido el horario oficial. Súbelo como imagen o PDF para tenerlo siempre a mano.</p>';
@@ -863,7 +865,7 @@ function rSemanal(){const w=U.week,days=[0,1,2,3,4].map(i=>iso(add(pd(w),i))),a=
   const W=S.weeks[w]||{notas:'',tareas:[]};
   $('#wGrid').innerHTML=days.map((ds,i)=>{const cl=classesOf(ds),its=S.items.filter(x=>x.d===ds).sort(byDate),ex=extrasOn(ds);
     return `<section class="wday${ds===TODAY?' tdy':''}" style="--p:${PV(i)}"><header><button data-day="${ds}" aria-label="Abrir planeación del ${fmtL(ds)}"><b>${DAYS[i]}</b><span>${pd(ds).getDate()} ${MC[pd(ds).getMonth()]}</span></button></header>
-    ${cl.concat(spacesOf(ds)).sort((a,b)=>a.b.ini<b.b.ini?-1:1).map(x=>{if(x.c.sp)return `<div class="wsp"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.sp)}</b>${x.c.r?`<span class="note">${esc(x.c.r)}</span>`:''}</div>`;const pl=S.plans[ds+'|'+x.b.id],hp=hasPlan(pl),st=pl&&pl.st;return `<button class="wcl ${st==='dictada'?'dictada':hp?'':'sinp'}" data-cls="${ds}|${esc(x.b.id)}" style="--c:${esc(subj(x.c.s).c)}"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.s)} ${esc(x.c.g||'')}</b><span>${st==='no'?'No se dictó':hp?esc(pl.tema||'Planeada'):'Sin planear'}</span></button>`}).join('')}
+    ${cl.concat(spacesOf(ds)).sort((a,b)=>a.b.ini<b.b.ini?-1:1).map(x=>{if(x.c.sp)return `<div class="wsp" style="--c:${spC(x.c.sp)}"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.sp)}</b>${x.c.r?`<span class="note">${esc(x.c.r)}</span>`:''}</div>`;const pl=S.plans[ds+'|'+x.b.id],hp=hasPlan(pl),st=pl&&pl.st;return `<button class="wcl ${st==='dictada'?'dictada':hp?'':'sinp'}" data-cls="${ds}|${esc(x.b.id)}" style="--c:${esc(subj(x.c.s).c)}"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.s)} ${esc(x.c.g||'')}</b><span>${st==='no'?'No se dictó':hp?esc(pl.tema||'Planeada'):'Sin planear'}</span></button>`}).join('')}
     ${ex.map(xchip).join('')}${its.map(chip).join('')}${!cl.length&&!spacesOf(ds).length&&!its.length&&!ex.length?'<span class="none">Día libre</span>':''}</section>`}).join('')+
   `<aside class="wside"><section class="box"><h3>Notas</h3><textarea id="wNotes" placeholder="Notas de la semana…" aria-label="Notas de la semana">${esc(W.notas||'')}</textarea></section>
    <section class="box"><h3>Tareas</h3><ul class="tl">${(W.tareas||[]).map((t,i)=>`<li class="${t.d?'dn2':''}"><label><input type="checkbox" data-wt="${i}"${t.d?' checked':''}><span>${esc(t.t)}</span></label><button data-wtd="${i}" aria-label="Quitar tarea">×</button></li>`).join('')||'<li class="note">Sin tareas para esta semana.</li>'}</ul>
@@ -889,7 +891,7 @@ function rDia(){const ds=U.day,d=pd(ds),p=perOf(ds);
   $('#dSub').textContent=[ds===TODAY?'Hoy':'',p?`${p.name} · semana ${Math.floor((mon(d)-mon(pd(p.start)))/(7*864e5))+1}`:'Fuera de los periodos configurados',String(d.getFullYear())].filter(Boolean).join(' · ');
   $('#dPick').value=ds;const cl=classesOf(ds);daySum();
   const all=cl.concat(spacesOf(ds)).sort((a,b)=>a.b.ini<b.b.ini?-1:1);
-  $('#dClasses').innerHTML=all.length?all.map(x=>x.c.sp?`<div class="dsp-card"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.sp)}</b>${x.c.r?`<small>${esc(x.c.r)}</small>`:''}</div>`:planCard(ds,x)).join(''):`<div class="emptyday"><p style="margin:0">${dIdx(ds)>4?'Es fin de semana: no hay clases en el horario.':'No hay clases asignadas en tu horario para este día.'}</p><a class="btn" href="#horario">Ir al horario</a></div>`;
+  $('#dClasses').innerHTML=all.length?all.map(x=>x.c.sp?`<div class="dsp-card" style="--c:${spC(x.c.sp)}"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.sp)}</b>${x.c.r?`<small>${esc(x.c.r)}</small>`:''}</div>`:planCard(ds,x)).join(''):`<div class="emptyday"><p style="margin:0">${dIdx(ds)>4?'Es fin de semana: no hay clases en el horario.':'No hay clases asignadas en tu horario para este día.'}</p><a class="btn" href="#horario">Ir al horario</a></div>`;
   const D=S.days[ds]||{};if(document.activeElement!==$('#dNotes'))$('#dNotes').value=D.notes||'';
   $('#dFiles').innerHTML=(D.files||[]).map(f=>fileChip(f,'day|'+ds)).join('')||'<span class="note">Sin archivos todavía</span>';
   const its=S.items.filter(i=>i.d===ds).sort(byDate),ex=extrasOn(ds);
@@ -1380,7 +1382,7 @@ function hDraw(){document.querySelectorAll('[data-hk]').forEach(b=>b.classList.t
   $('#hSubs').innerHTML=subs.map(x=>`<button type="button" class="sub${x.n===H.s?' on':''}" data-hs="${esc(x.n)}" style="--c:${esc(x.c)}">${esc(x.n)}</button>`).join('')||'<span class="none">Aún no tienes asignaturas: escribe una abajo.</span>';
   const gs=knownGroups();$('#hGrps').innerHTML=gs.map(g=>`<button type="button" class="${g===H.g?'on':''}" data-hg="${esc(g)}">${esc(g)}</button>`).join('')||'<span class="none">Escribe el grado o grupo abajo.</span>';
   $('#hG').value=H.g;
-  $('#hSps').innerHTML=S.spaces.map(v=>`<button type="button" class="${v===H.sp?'on':''}" data-hsp="${esc(v)}">${esc(v)}</button>`).join('');
+  $('#hSps').innerHTML=S.spaces.map(v=>`<button type="button" class="sub${nkey(v)===nkey(H.sp)?' on':''}" data-hsp="${esc(v)}" style="--c:${spC(v)}">${esc(v)}</button>`).join('');
   const k0=+hEdit.split('|')[1];$('#hDays').innerHTML=DAYS.map((d,k)=>`<button type="button" class="${k===k0||H.days.has(k)?'on':''}" data-hd="${k}"${k===k0?' disabled':''}>${d}</button>`).join('')}
 function openCell(key){hEdit=key;const c=S.sched.cells[key]||{},[bid,k]=key.split('|'),b=S.sched.blocks.find(y=>y.id===bid);
   H={k:c.sp?'sp':'clase',s:c.s||'',g:c.g||'',sp:c.sp||'',days:new Set()};
