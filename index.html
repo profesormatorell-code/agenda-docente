@@ -376,6 +376,8 @@ dialog::backdrop{background:rgba(10,14,40,.5)}
 .db{padding:18px 20px;display:grid;gap:12px}
 .g2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
 .fld input,.fld select,.fld textarea{width:100%}.fld textarea{min-height:80px;resize:vertical}
+.ev td.na{color:var(--mute);font-size:13px}.ev th small.only{display:block;font-weight:400;color:var(--mute);font-size:11.5px;padding:2px 4px}
+.mvsum{background:var(--pane);border-radius:12px;padding:12px 14px;font-size:15px}.mvsum ul{margin:6px 0 0;padding-left:20px}.mvsum.warn{border-left:6px solid var(--red,#c0392b)}
 .df{display:flex;gap:8px;padding:0 20px 18px;flex-wrap:wrap}.df .sp1{margin-right:auto}
 .bk textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
 .toast{position:fixed;left:50%;bottom:20px;transform:translate(-50%,120px);background:var(--ink);color:var(--bg);padding:10px 10px 10px 18px;border-radius:12px;display:flex;gap:12px;align-items:center;transition:transform .25s,visibility .25s;z-index:9;max-width:92vw;visibility:hidden}
@@ -573,6 +575,13 @@ dialog::backdrop{background:rgba(10,14,40,.5)}
       <button type="button" class="btn" id="dCancel">Cancelar</button>
       <button type="submit" class="btn pri">Guardar</button>
     </div>
+  </form>
+</dialog>
+<dialog id="mdlg">
+  <form id="mf">
+    <div class="dh"><h2 id="mT">Estudiante</h2></div>
+    <div class="db" id="mBody"></div>
+    <div class="df"><button type="button" class="btn sp1" id="mCancel">Cancelar</button><button type="submit" class="btn danger" id="mOk" disabled>Confirmar</button></div>
   </form>
 </dialog>
 <dialog id="rdlg">
@@ -939,7 +948,55 @@ function rAsistencia(){$('#aSide').innerHTML=groupSide();const g=grp(U.g);
   $('#aMain').innerHTML=`<div class="tbar"><h3>${esc(g.name)} · ${cap1(MES[m-1])} ${y}</h3><button class="icon" data-am="-1" aria-label="Mes anterior">‹</button><button class="btn" data-am="0">Este mes</button><button class="icon" data-am="1" aria-label="Mes siguiente">›</button></div>
   ${g.students.length?`<div class="scroll"><table class="at"><thead><tr><th class="stu">Estudiante</th>${days.map(ds=>`<th class="${hasCls(ds)?'cls':''}${ds===TODAY?' tdy':''}" title="${fmtL(ds)}"><small>${'LMXJV'[dIdx(ds)]}</small>${pd(ds).getDate()}</th>`).join('')}<th title="Faltas">F</th><th title="Retardos">R</th><th title="Excusas">E</th></tr></thead>
   <tbody>${g.students.map((s,i)=>{const t=tot(s);return `<tr><th class="stu">${i+1}. ${esc(s.n)}</th>${days.map(ds=>{const v=(S.att[g.id+'|'+ds]||{})[s.id]||'';return `<td><button class="ac ${v}" data-at="${ds}|${esc(s.id)}" aria-label="${esc(s.n)}, ${fmtL(ds)}: ${MKN[v]}">${v}</button></td>`}).join('')}<td class="tot" data-tt="F|${esc(s.id)}">${t.F||''}</td><td class="tot" data-tt="R|${esc(s.id)}">${t.R||''}</td><td class="tot" data-tt="E|${esc(s.id)}">${t.E||''}</td></tr>`}).join('')}</tbody></table></div>
-  <div class="legend"><span><span class="ac F">F</span> Falta</span><span><span class="ac R">R</span> Retardo</span><span><span class="ac E">E</span> Excusa</span><span>Columnas en azul: días en que tienes clase con este grupo.</span></div>`:'<p class="empty">Agrega la lista de estudiantes del grupo para llevar la asistencia.</p>'}`}
+  <div class="legend"><span><span class="ac F">F</span> Falta</span><span><span class="ac R">R</span> Retardo</span><span><span class="ac E">E</span> Excusa</span><span>Columnas en azul: días en que tienes clase con este grupo.</span></div>
+  <section class="box" style="margin-top:18px"><h3>Trasladar o retirar estudiante</h3>
+  <p class="note">«Trasladar» pasa al estudiante a otro de tus grupos con su asistencia y sus notas. «Retirar» lo borra de la agenda cuando sale del colegio. Ambas acciones piden confirmación.</p>
+  <div class="addrow" style="flex-wrap:wrap"><select class="inp" id="mvS" aria-label="Estudiante" style="flex:1 1 220px">${g.students.map(s=>`<option value="${esc(s.id)}">${esc(s.n)}</option>`).join('')}</select>
+  <button class="btn" id="mvT">Trasladar a otro grupo</button><button class="btn danger" id="mvR">Retirar del colegio</button></div></section>`:'<p class="empty">Agrega la lista de estudiantes del grupo para llevar la asistencia.</p>'}`;
+  if(g.students.length){$('#mvT').onclick=()=>mvOpen('T',g,$('#mvS').value);$('#mvR').onclick=()=>mvOpen('R',g,$('#mvS').value)}}
+/* trasladar o retirar un estudiante */
+const nkey=t=>String(t||'').trim().toLowerCase();
+function mvPlan(gA,sid,gB,apply){const r={coin:0,prop:0,pend:[],att:0,notas:0};const hit=new Set();
+  Object.keys(S.att).forEach(k=>{const i=k.indexOf('|');if(k.slice(0,i)!==gA.id||!(sid in S.att[k]))return;r.att++;
+    if(apply){const ds=k.slice(i+1),nk=gB.id+'|'+ds;(S.att[nk]=S.att[nk]||{})[sid]=S.att[k][sid];delete S.att[k][sid];if(!Object.keys(S.att[k]).length)delete S.att[k]}});
+  Object.keys(S.evals).forEach(k=>{const a=k.indexOf('|'),b=k.indexOf('|',a+1),pid=k.slice(0,a),gid=k.slice(a+1,b),sub=k.slice(b+1);if(gid!==gA.id)return;
+    const sh=S.evals[k],cols=sh.cols.filter(c=>c.only===sid||sh.marks[sid+'|'+c.id]!=null);if(!cols.length)return;
+    const dk=pid+'|'+gB.id+'|'+sub;let dsh=S.evals[dk]||null;if(apply)dsh=sheetOf(dk,true);
+    cols.forEach(c=>{const v=sh.marks[sid+'|'+c.id];if(v!=null)r.notas++;const cat=S.cats.find(x=>x.k===c.cat);
+      let m=null;if(!c.only){if(cat&&!cat.multi)m=dsh?colsOf(dsh,c.cat).find(x=>!x.only)||null:{id:'nuevo:'+dk+c.cat};else if(dsh)m=dsh.cols.find(x=>!x.only&&x.cat===c.cat&&nkey(x.n)===nkey(c.n))||null}
+      if(m){hit.add(dk+'#'+m.id);if(v!=null)r.coin++}else if(v!=null)r.prop++;
+      if(!apply)return;
+      if(m){if(v!=null)dsh.marks[sid+'|'+m.id]=v}else{const nc={id:uid(),n:c.n,cat:c.cat,only:sid};dsh.cols.push(nc);if(v!=null)dsh.marks[sid+'|'+nc.id]=v}
+      delete sh.marks[sid+'|'+c.id];if(c.only===sid)sh.cols=sh.cols.filter(x=>x!==c)})});
+  if(!apply)Object.keys(S.evals).forEach(k=>{const a=k.indexOf('|'),b=k.indexOf('|',a+1);if(k.slice(a+1,b)!==gB.id)return;const sh=S.evals[k],p=per(k.slice(0,a));
+    sh.cols.forEach(x=>{if(!x.only&&isActive(sh,x.id)&&!hit.has(k+'#'+x.id))r.pend.push(`${p?p.name:'Periodo'} · ${k.slice(b+1)} · ${x.n}`)})});
+  if(apply){const st=gA.students.find(s=>s.id===sid);gA.students=gA.students.filter(s=>s.id!==sid);if(!gB.students.some(s=>s.id===sid))gB.students.push(st)}
+  return r}
+function mvRetirar(g,sid,apply){const r={notas:0,att:0};
+  Object.keys(S.att).forEach(k=>{if(!k.startsWith(g.id+'|')||!(sid in S.att[k]))return;r.att++;if(apply){delete S.att[k][sid];if(!Object.keys(S.att[k]).length)delete S.att[k]}});
+  Object.keys(S.evals).forEach(k=>{if(k.split('|')[1]!==g.id)return;const sh=S.evals[k];Object.keys(sh.marks).forEach(m=>{if(m.startsWith(sid+'|')){if(sh.marks[m]!=null)r.notas++;if(apply)delete sh.marks[m]}});
+    if(apply)sh.cols=sh.cols.filter(c=>c.only!==sid)});
+  if(apply)g.students=g.students.filter(s=>s.id!==sid);return r}
+let MV=null;
+function mvOpen(kind,g,sid){const st=g.students.find(s=>s.id===sid);if(!st)return;const others=S.groups.filter(x=>x.id!==g.id);
+  if(kind==='T'&&!others.length){toast('Primero crea el grupo al que pasará el estudiante.');return}
+  MV={kind,g,sid,word:kind==='T'?'TRASLADAR':'RETIRAR',dest:null};
+  $('#mT').textContent=kind==='T'?'Trasladar estudiante':'Retirar estudiante';$('#mOk').textContent=kind==='T'?'Trasladar':'Retirar y borrar';
+  $('#mBody').innerHTML=(kind==='T'?`<p><b>${esc(st.n)}</b> pasará de <b>${esc(g.name)}</b> al grupo que elijas, con su asistencia y sus notas.</p>
+    <label class="dnl">Grupo destino<select class="inp" id="mG"><option value="">Elige el grupo…</option>${others.map(x=>`<option value="${esc(x.id)}">${esc(x.name)}</option>`).join('')}</select></label>`
+    :`<p>Úsalo cuando <b>${esc(st.n)}</b> se retira del colegio. Se borra de <b>${esc(g.name)}</b> y de la agenda.</p>`)+
+    `<div class="mvsum${kind==='R'?' warn':''}" id="mSum"${kind==='T'?' hidden':''}></div>
+    <label class="dnl">Para confirmar escribe <b>${MV.word}</b><input class="inp" id="mW" autocomplete="off" spellcheck="false"></label>`;
+  if(kind==='R'){const r=mvRetirar(g,sid,false);$('#mSum').innerHTML=`Se borrarán para siempre <b>${r.notas} nota(s)</b> y <b>${r.att} registro(s) de asistencia</b>. Si cambió de grupo, usa «Trasladar».`}
+  else $('#mG').onchange=e=>{const gB=grp(e.target.value);MV.dest=gB||null;const sm=$('#mSum');if(!gB){sm.hidden=true;mvChk();return}
+    const r=mvPlan(g,sid,gB,false);sm.hidden=false;sm.innerHTML=`<b>Qué pasará</b><ul><li>${r.att} registro(s) de asistencia pasan a ${esc(gB.name)}.</li><li>${r.coin} nota(s) pasan a la actividad del mismo nombre en ${esc(gB.name)}.</li><li>${r.prop} nota(s) sin actividad equivalente viajan con él como actividades solo suyas.</li><li>${r.pend.length?`${r.pend.length} actividad(es) de ${esc(gB.name)} quedan para calificar (cuentan 0 hasta que pongas la nota): ${r.pend.slice(0,6).map(esc).join('; ')}${r.pend.length>6?'…':''}`:'No quedan actividades pendientes por calificar.'}</li></ul>`;mvChk()};
+  $('#mW').oninput=mvChk;mvChk();$('#mdlg').showModal();(kind==='T'?$('#mG'):$('#mW')).focus()}
+function mvChk(){$('#mOk').disabled=!(MV&&(MV.kind==='R'||MV.dest)&&$('#mW').value.trim().toUpperCase()===MV.word)}
+$('#mCancel').onclick=()=>$('#mdlg').close();
+$('#mf').addEventListener('submit',e=>{e.preventDefault();mvChk();if($('#mOk').disabled||!MV)return;const st=MV.g.students.find(s=>s.id===MV.sid);
+  if(MV.kind==='T'){const r=mvPlan(MV.g,MV.sid,MV.dest,false);mvPlan(MV.g,MV.sid,MV.dest,true);toast(`${st.n} pasó a ${MV.dest.name}`+(r.pend.length?`. Tiene ${r.pend.length} actividad(es) por calificar allí.`:''))}
+  else{mvRetirar(MV.g,MV.sid,true);toast(`${st.n} fue retirado`)}
+  MV=null;$('#mdlg').close();commit()});
 
 /* importar estudiantes con su grupo */
 const loadLib=(srcs,name)=>new Promise((ok,ko)=>{const tryN=i=>{if(window[name])return ok(window[name]);if(i>=srcs.length)return ko();const sc=document.createElement('script');sc.src=srcs[i];sc.onload=()=>window[name]?ok(window[name]):tryN(i+1);sc.onerror=()=>{sc.remove();tryN(i+1)};document.head.appendChild(sc)};tryN(0)});
@@ -999,7 +1056,9 @@ const sheet=()=>{const g=grp(U.g);return sheetOf(U.ep+'|'+g.id+'|'+U.es,true)};
 const colsOf=(sh,k)=>sh.cols.filter(c=>c.cat===k);
 /* una actividad cuenta cuando ya tiene al menos una nota en el grupo; a quien le falte, se le cuenta 0 */
 const isActive=(sh,cid)=>Object.keys(sh.marks).some(k=>k.endsWith('|'+cid)&&sh.marks[k]!=null);
-function catAvg(sh,sid,k){const cs=colsOf(sh,k).filter(c=>isActive(sh,c.id));if(!cs.length)return null;return cs.reduce((a,c)=>a+(sh.marks[sid+'|'+c.id]??0),0)/cs.length}
+const forStu=(c,sid)=>!c.only||c.only===sid;
+const stOf=(g,x)=>x.only?g.students.filter(s=>s.id===x.only):g.students;
+function catAvg(sh,sid,k){const cs=colsOf(sh,k).filter(c=>forStu(c,sid)&&isActive(sh,c.id));if(!cs.length)return null;return cs.reduce((a,c)=>a+(sh.marks[sid+'|'+c.id]??0),0)/cs.length}
 function finalOf(sh,sid){if(!sh)return null;let sw=0,sm=0;S.cats.forEach(c=>{const a=catAvg(sh,sid,c.k);if(a==null)return;sw+=+c.w||0;sm+=a*(+c.w||0)});if(!sw)return null;const f=10**S.scale.dec;return Math.round(sm/sw*f)/f}
 const f1=v=>{if(v==null)return'';v=Math.round(v*10)/10;return Number.isInteger(v)?String(v):v.toFixed(1).replace('.',',')};
 const avgOf=(L,f)=>{const v=L.map(f).filter(x=>x!=null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null};
@@ -1020,10 +1079,10 @@ function rEvaluaciones(){if(!grp(U.g))U.g=(S.groups[0]||{}).id||'';if(!per(U.ep)
   if(U.ev==='anio')return rYear(g);
   const sh=sheet(),W=cw(),C=S.cats;
   const head1=C.map((c,i)=>`<th class="cat" colspan="${c.multi?colsOf(sh,c.k).length+1:1}" style="--p:${PV(i)}"><b>${esc(c.n)}</b> · ${c.w}%${c.multi?`<br><button class="btn sm" data-eadd="${c.k}">+ Actividad</button>`:''}</th>`).join('');
-  const head2=C.map(c=>c.multi?colsOf(sh,c.k).map(x=>`<th><input class="ecn" data-ecn="${esc(x.id)}" value="${esc(x.n)}" aria-label="Nombre de la actividad"><span class="ew"><button data-ecd="${esc(x.id)}" aria-label="Quitar ${esc(x.n)}">Quitar</button></span></th>`).join('')+'<th class="pr">Promedio</th>':'<th class="pr">Nota</th>').join('');
-  const cell=(s,x)=>`<td><input inputmode="decimal" data-em="${esc(s.id)}|${esc(x.id)}" value="${f1(sh.marks[s.id+'|'+x.id])}"${isActive(sh,x.id)?' placeholder="0"':''} aria-label="${esc(s.n)}, ${esc(x.n)}"></td>`;
+  const head2=C.map(c=>c.multi?colsOf(sh,c.k).map(x=>`<th><input class="ecn" data-ecn="${esc(x.id)}" value="${esc(x.n)}" aria-label="Nombre de la actividad">${x.only?`<small class="only">solo ${esc((g.students.find(s=>s.id===x.only)||{n:'un estudiante'}).n)}</small>`:''}<span class="ew"><button data-ecd="${esc(x.id)}" aria-label="Quitar ${esc(x.n)}">Quitar</button></span></th>`).join('')+'<th class="pr">Promedio</th>':'<th class="pr">Nota</th>').join('');
+  const cell=(s,x)=>!forStu(x,s.id)?'<td class="na" title="Actividad de otro estudiante">—</td>':`<td><input inputmode="decimal" data-em="${esc(s.id)}|${esc(x.id)}" value="${f1(sh.marks[s.id+'|'+x.id])}"${isActive(sh,x.id)?' placeholder="0"':''} aria-label="${esc(s.n)}, ${esc(x.n)}"></td>`;
   const body=g.students.map((s,i)=>{const fv=finalOf(sh,s.id);return `<tr><th class="stu">${i+1}. ${esc(s.n)}</th>${C.map(c=>c.multi?colsOf(sh,c.k).map(x=>cell(s,x)).join('')+`<td class="pr" data-cp="${esc(s.id)}|${c.k}">${f1(catAvg(sh,s.id,c.k))}</td>`:colsOf(sh,c.k).slice(0,1).map(x=>cell(s,x)).join('')).join('')}<td class="fin" data-ef="${esc(s.id)}">${f1(fv)}</td><td data-ed="${esc(s.id)}">${dspTag(fv)}</td></tr>`}).join('');
-  const foot=C.map(c=>c.multi?colsOf(sh,c.k).map(x=>`<td data-ea="${esc(x.id)}">${f1(isActive(sh,x.id)?avgOf(g.students,s=>sh.marks[s.id+'|'+x.id]??0):null)}</td>`).join('')+`<td data-ea="cp|${c.k}">${f1(avgOf(g.students,s=>catAvg(sh,s.id,c.k)))}</td>`:colsOf(sh,c.k).slice(0,1).map(x=>`<td data-ea="${esc(x.id)}">${f1(isActive(sh,x.id)?avgOf(g.students,s=>sh.marks[s.id+'|'+x.id]??0):null)}</td>`).join('')).join('');
+  const foot=C.map(c=>c.multi?colsOf(sh,c.k).map(x=>`<td data-ea="${esc(x.id)}">${f1(isActive(sh,x.id)?avgOf(stOf(g,x),s=>sh.marks[s.id+'|'+x.id]??0):null)}</td>`).join('')+`<td data-ea="cp|${c.k}">${f1(avgOf(g.students,s=>catAvg(sh,s.id,c.k)))}</td>`:colsOf(sh,c.k).slice(0,1).map(x=>`<td data-ea="${esc(x.id)}">${f1(isActive(sh,x.id)?avgOf(stOf(g,x),s=>sh.marks[s.id+'|'+x.id]??0):null)}</td>`).join('')).join('');
   $('#eMain').innerHTML=evalBar()+`<div class="tbar"><button class="btn pri" data-xls="per">Descargar Excel del periodo</button><button class="btn" id="eCopy">Copiar notas</button><span class="note${W!==100?' late':''}">${W===100?'Los porcentajes suman 100 %.':`Los porcentajes suman ${W} %: la definitiva se calcula sobre ${W}. Revísalos en «Escala y ponderación».`}</span></div>
   <div class="scroll"><table class="ev"><thead><tr><th class="stu" rowspan="2">Estudiante</th>${head1}<th rowspan="2">Definitiva</th><th rowspan="2">Desempeño</th></tr><tr>${head2}</tr></thead>
   <tbody>${body}</tbody><tfoot><tr><td style="text-align:left">Promedio del grupo</td>${foot}<td data-ea="fin">${f1(avgOf(g.students,s=>finalOf(sh,s.id)))}</td><td></td></tr></tfoot></table></div>
@@ -1048,7 +1107,7 @@ function evalRefresh(){const g=grp(U.g),sh=sheet();
   g.students.forEach(s=>{const fv=finalOf(sh,s.id),q=a=>document.querySelector(`[${a}]`);
     const f=q(`data-ef="${CSS.escape(s.id)}"`),e=q(`data-ed="${CSS.escape(s.id)}"`);if(f)f.textContent=f1(fv);if(e)e.innerHTML=dspTag(fv);
     S.cats.forEach(c=>{const t=q(`data-cp="${CSS.escape(s.id)}|${c.k}"`);if(t)t.textContent=f1(catAvg(sh,s.id,c.k))})});
-  sh.cols.forEach(x=>{const t=document.querySelector(`[data-ea="${CSS.escape(x.id)}"]`);if(t)t.textContent=f1(isActive(sh,x.id)?avgOf(g.students,s=>sh.marks[s.id+'|'+x.id]??0):null);document.querySelectorAll(`[data-em$="|${CSS.escape(x.id)}"]`).forEach(i=>{if(isActive(sh,x.id))i.placeholder='0';else i.removeAttribute('placeholder')})});
+  sh.cols.forEach(x=>{const t=document.querySelector(`[data-ea="${CSS.escape(x.id)}"]`);if(t)t.textContent=f1(isActive(sh,x.id)?avgOf(stOf(g,x),s=>sh.marks[s.id+'|'+x.id]??0):null);document.querySelectorAll(`[data-em$="|${CSS.escape(x.id)}"]`).forEach(i=>{if(isActive(sh,x.id))i.placeholder='0';else i.removeAttribute('placeholder')})});
   S.cats.forEach(c=>{const t=document.querySelector(`[data-ea="cp|${c.k}"]`);if(t)t.textContent=f1(avgOf(g.students,s=>catAvg(sh,s.id,c.k)))});
   const t=document.querySelector('[data-ea="fin"]');if(t)t.textContent=f1(avgOf(g.students,s=>finalOf(sh,s.id)))}
 
@@ -1276,7 +1335,7 @@ document.addEventListener('click',e=>{const t=e.target,hit=s=>t.closest(s);let x
       const old=g.students;g.students=names.map(n=>old.find(s=>s.n===n)||{id:uid(),n});delete g.ex;commit();toast(`Lista guardada: ${names.length} estudiantes`);break}
     case 'gDel':{if(!armed(t,'¿Eliminar grupo y sus registros?'))break;const i=S.groups.findIndex(g=>g.id===U.g),g=S.groups[i];S.groups.splice(i,1);U.g='';commit();toast(`Grupo ${g.name} eliminado`,()=>S.groups.splice(i,0,g));break}
     case 'eCopy':{const g=grp(U.g),sh=sheet(),hd=['Estudiante'];S.cats.forEach(c=>{if(c.multi){colsOf(sh,c.k).forEach(x=>hd.push(x.n));hd.push(c.n+' ('+c.w+' %)')}else hd.push(c.n+' ('+c.w+' %)')});hd.push('Definitiva','Desempeño');const rows=[hd.join('\t')];
-      g.students.forEach(st=>{const r=[st.n];S.cats.forEach(c=>{if(c.multi){colsOf(sh,c.k).forEach(x=>r.push(f1(sh.marks[st.id+'|'+x.id])));r.push(f1(catAvg(sh,st.id,c.k)))}else r.push(f1(sh.marks[st.id+'|'+(colsOf(sh,c.k)[0]||{}).id]))});const fv=finalOf(sh,st.id);r.push(f1(fv),(dsp(fv)||['',''])[1]);rows.push(r.join('\t'))});
+      g.students.forEach(st=>{const r=[st.n];S.cats.forEach(c=>{if(c.multi){colsOf(sh,c.k).forEach(x=>r.push(forStu(x,st.id)?f1(sh.marks[st.id+'|'+x.id]):'N/A'));r.push(f1(catAvg(sh,st.id,c.k)))}else r.push(f1(sh.marks[st.id+'|'+(colsOf(sh,c.k)[0]||{}).id]))});const fv=finalOf(sh,st.id);r.push(f1(fv),(dsp(fv)||['',''])[1]);rows.push(r.join('\t'))});
       navigator.clipboard.writeText(rows.join('\n')).then(()=>toast('Notas copiadas: pégalas en Excel o en la plataforma')).catch(()=>toast('No se pudo copiar'));break}
     case 'eCopyY':{const g=grp(U.g),{ps,w}=yearPeriods(),Wt=w.reduce((a,b)=>a+b,0),rows=[['Estudiante',...ps.map((p,j)=>p.name+' ('+w[j]+' %)'),'Final del año'].join('\t')];
       g.students.forEach(st=>{const d=ps.map(p=>finalOf(S.evals[p.id+'|'+g.id+'|'+U.es],st.id)),done=d.every(v=>v!=null),acc=d.reduce((a,v,j)=>a+(v==null?0:v*w[j]),0);rows.push([st.n,...d.map(f1),done&&Wt?f1(Math.round(acc/Wt*10**S.scale.dec)/10**S.scale.dec):''].join('\t'))});
