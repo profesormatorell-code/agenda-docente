@@ -735,7 +735,20 @@ const setSave=k=>{const e=$('#save');e.textContent=SAVE[k];e.classList.toggle('s
 let tmr;
 const cacheKey=()=>'agd-'+UID;
 function commit(quiet){S.savedAt=Date.now();dirty=true;try{UID&&localStorage.setItem(cacheKey(),JSON.stringify(S))}catch(e){}
-  setSave('pend');clearTimeout(tmr);tmr=setTimeout(publish,1500);if(!quiet)render()}
+  setSave('pend');clearTimeout(tmr);tmr=setTimeout(publish,1500);aulaSoon();if(!quiet)render()}
+/* sincronización de cursos y estudiantes con el Aula virtual */
+let aulaT=null,aulaBusy=false,aulaAgain=false,aulaMsg='';
+const aulaSigKey=()=>'aula-sig-'+UID;
+function aulaPayload(){const out=[];S.groups.filter(g=>!g.ex).forEach(g=>{const m=g.name.trim().match(/^(\d{1,2})\s*[°ºo]?\s*[-–]?\s*(.*)$/),grado=m?m[1]:g.name.trim().slice(0,20),grupo=m?m[2].trim().slice(0,20):'';
+  subsOfG(g).filter(sn=>sn!=='Institucional').forEach(sn=>out.push({ref:g.id+'|'+sn,asignatura:sn.slice(0,80),grado,grupo,estudiantes:g.students.map(st=>({ref:st.id,nombre:st.n.slice(0,120)}))}))});return out}
+function aulaSoon(){if(!sb||!UID)return;clearTimeout(aulaT);aulaT=setTimeout(aulaSync,2500)}
+async function aulaSync(force){if(!sb||!UID)return;if(aulaBusy){aulaAgain=true;return}
+  const P=aulaPayload(),anio=+schoolYear().y,sig=JSON.stringify([anio,P]);let last=null;try{last=localStorage.getItem(aulaSigKey())}catch(e){}
+  if(!force&&sig===last)return;aulaBusy=true;
+  try{const {data,error}=await sb.rpc('aula_sincronizar',{p:P,p_anio:anio});if(error)throw error;try{localStorage.setItem(aulaSigKey(),sig)}catch(e){}
+    aulaMsg='';const n=(data.cursos_nuevos||0)+(data.estudiantes_nuevos||0)+(data.trasladados||0);if(n&&force!=='silent')toast(`Aula virtual al día: ${data.cursos_nuevos} curso(s) y ${data.estudiantes_nuevos} estudiante(s) nuevos`+(data.trasladados?`, ${data.trasladados} trasladado(s)`:''))}
+  catch(e){console.warn('aula',e);aulaMsg='No se pudo actualizar el Aula virtual. Se intentará de nuevo con el próximo cambio.';try{localStorage.removeItem(aulaSigKey())}catch(_){}}
+  finally{aulaBusy=false;const n=$('#aulaSt');if(n)n.textContent=aulaMsg||'Los cursos y estudiantes se pasan solos al Aula virtual: un curso por cada asignatura del grupo.';if(aulaAgain){aulaAgain=false;aulaSoon()}}}
 async function publish(){if(!sb||!UID||!dirty)return;if(saving){again=true;return}saving=true;dirty=false;setSave('saving');
   const now=new Date().toISOString();
   try{let r;
@@ -954,7 +967,7 @@ function newClass(sn,gn){gn=String(gn||'').trim().slice(0,30);if(!gn){toast('Esc
   toast(nuevo?`Clase creada: ${sn?sn+' · ':''}${gn}. Ahora agrega sus estudiantes.`:`${sn?sn+' quedó en':'Ya existía'} el grupo ${g.name}`);return g}
 function cList(){const q=nkey(U.cq);const gs=sortG(S.groups).filter(x=>!q||nkey(x.name).includes(q));
   const st=q?S.groups.flatMap(g=>g.students.filter(s=>nkey(s.n).includes(q)).map(s=>({g,s}))).slice(0,30):[];
-  return `<div class="glist">${gs.map(x=>{const sb=subsOfG(x);return `<button class="gb${x.id===U.g?' on':''}" data-gsel="${esc(x.id)}"><span>${esc(x.name)}${sb.length?`<small style="display:block">${esc(sb.join(' · '))}</small>`:''}</span><small>${x.students.length} ${x.students.length===1?'est.':'est.'}</small></button>`}).join('')||(q?'':'<p class="note">Aún no tienes grupos. Crea tu primera clase arriba.</p>')}</div>
+  return `<div class="glist">${gs.map(x=>{const sbj=subsOfG(x);return `<button class="gb${x.id===U.g?' on':''}" data-gsel="${esc(x.id)}"><span>${esc(x.name)}${sbj.length?`<small style="display:block">${esc(sbj.join(' · '))}</small>`:''}</span><small>${x.students.length} ${x.students.length===1?'est.':'est.'}</small></button>`}).join('')||(q?'':'<p class="note">Aún no tienes grupos. Crea tu primera clase arriba.</p>')}</div>
   ${st.length?`<p class="note">Estudiantes que coinciden:</p><div class="cres">${st.map(({g,s})=>`<button data-chl="${esc(g.id)}|${esc(s.id)}">${esc(s.n)} <small>· ${esc(g.name)}</small></button>`).join('')}</div>`:''}
   ${q&&!gs.length&&!st.length?'<p class="note">No hay grupos ni estudiantes con ese nombre.</p>':''}`}
 function rClases(){if(!grp(U.g))U.g=(sortG(S.groups)[0]||{}).id||'';const g=grp(U.g);
@@ -976,6 +989,7 @@ function rClases(){if(!grp(U.g))U.g=(sortG(S.groups)[0]||{}).id||'';const g=grp(
   if(!g){$('#cMain').innerHTML='<p class="empty"><b>Aún no tienes clases con grupo.</b> En «Nueva clase» (a la izquierda) elige la asignatura, escribe el grupo, por ejemplo 9°A, y toca «Crear clase». Después podrás agregar los estudiantes aquí. También puedes subir todas tus listas con «Importar estudiantes», o programar tus clases en el <a href="#horario">Horario</a>: cada grupo del horario aparece aquí solo.</p>';return}
   const info=classInfo(g);
   $('#cMain').innerHTML=`<div class="tbar"><h3>${esc(g.name)} · ${g.students.length} ${g.students.length===1?'estudiante':'estudiantes'}</h3></div>
+  <p class="note" id="aulaSt" style="margin:-4px 0 10px">${aulaMsg?esc(aulaMsg):subsOfG(g).length?'Los cursos y estudiantes se pasan solos al Aula virtual: un curso por cada asignatura del grupo.':'Para que este grupo aparezca en el Aula virtual, créale una clase con su asignatura en «Nueva clase».'}</p>
   <div class="cinfo" style="margin-bottom:14px">${info||'<span class="note">Este grupo no tiene clases en tu horario.</span>'}</div>
   ${g.students.length?`<table class="ctab"><thead><tr><th></th><th>Estudiante</th><th style="text-align:right">Acciones</th></tr></thead><tbody>${g.students.map((st,i)=>`<tr${st.id===U.chl?' class="hl"':''}><td class="n">${i+1}</td><td>${esc(st.n)}</td><td class="act"><button class="btn sm" data-crn="${esc(st.id)}">Renombrar</button> <button class="btn sm" data-cmv="T|${esc(st.id)}">Trasladar</button> <button class="btn sm danger" data-cmv="R|${esc(st.id)}">Retirar</button></td></tr>`).join('')}</tbody></table>`:'<p class="empty">Este grupo aún no tiene estudiantes. Agrégalos abajo o con «Importar estudiantes».</p>'}
   <section class="box" style="margin-top:18px"><h3>Agregar estudiantes a ${esc(g.name)}</h3><p class="note">Un nombre por línea; puedes pegarlos desde Excel o desde la plataforma. Los que ya están no se repiten.</p>
@@ -1038,7 +1052,7 @@ function mvOpen(kind,g,sid){const st=g.students.find(s=>s.id===sid);if(!st)retur
     :`<p>Úsalo cuando <b>${esc(st.n)}</b> se retira del colegio. Se borra de <b>${esc(g.name)}</b> y de la agenda.</p>`)+
     `<div class="mvsum${kind==='R'?' warn':''}" id="mSum"${kind==='T'?' hidden':''}></div>
     <label class="dnl">Para confirmar escribe <b>${MV.word}</b><input class="inp" id="mW" autocomplete="off" spellcheck="false"></label>`;
-  if(kind==='R'){const r=mvRetirar(g,sid,false);$('#mSum').innerHTML=`Se borrarán para siempre <b>${r.notas} nota(s)</b> y <b>${r.att} registro(s) de asistencia</b>. Si cambió de grupo, usa «Trasladar».`}
+  if(kind==='R'){const r=mvRetirar(g,sid,false);$('#mSum').innerHTML=`Se borrarán para siempre <b>${r.notas} nota(s)</b> y <b>${r.att} registro(s) de asistencia</b>, y también se borra del Aula virtual con sus notas y evidencias. Si cambió de grupo, usa «Trasladar».`}
   else $('#mG').onchange=e=>{const gB=grp(e.target.value);MV.dest=gB||null;const sm=$('#mSum');if(!gB){sm.hidden=true;mvChk();return}
     const r=mvPlan(g,sid,gB,false);sm.hidden=false;sm.innerHTML=`<b>Qué pasará</b><ul><li>${r.att} registro(s) de asistencia pasan a ${esc(gB.name)}.</li><li>${r.coin} nota(s) pasan a la actividad del mismo nombre en ${esc(gB.name)}.</li><li>${r.prop} nota(s) sin actividad equivalente viajan con él como actividades solo suyas.</li><li>${r.pend.length?`${r.pend.length} actividad(es) de ${esc(gB.name)} quedan para calificar (cuentan 0 hasta que pongas la nota): ${r.pend.slice(0,6).map(esc).join('; ')}${r.pend.length>6?'…':''}`:'No quedan actividades pendientes por calificar.'}</li></ul>`;mvChk()};
   $('#mW').oninput=mvChk;mvChk();$('#mdlg').showModal();(kind==='T'?$('#mG'):$('#mW')).focus()}
@@ -1046,7 +1060,7 @@ function mvChk(){$('#mOk').disabled=!(MV&&(MV.kind==='R'||MV.dest)&&$('#mW').val
 $('#mCancel').onclick=()=>$('#mdlg').close();
 $('#mf').addEventListener('submit',e=>{e.preventDefault();mvChk();if($('#mOk').disabled||!MV)return;const st=MV.g.students.find(s=>s.id===MV.sid);
   if(MV.kind==='T'){const r=mvPlan(MV.g,MV.sid,MV.dest,false);mvPlan(MV.g,MV.sid,MV.dest,true);toast(`${st.n} pasó a ${MV.dest.name}`+(r.pend.length?`. Tiene ${r.pend.length} actividad(es) por calificar allí.`:''))}
-  else{mvRetirar(MV.g,MV.sid,true);toast(`${st.n} fue retirado`)}
+  else{const sid=MV.sid;mvRetirar(MV.g,sid,true);toast(`${st.n} fue retirado`);if(sb&&UID)sb.rpc('aula_retirar_ref',{p_ref:sid}).then(({error})=>{if(error)console.warn('aula',error)})}
   MV=null;$('#mdlg').close();commit()});
 
 /* importar estudiantes con su grupo */
@@ -1497,7 +1511,7 @@ async function enter(session){if(!session)return;UID=session.user.id;
   let local=null;try{local=JSON.parse(localStorage.getItem(cacheKey())||'null')}catch(_){}
   if(data){S=norm(data.data);known=data.updated_at;if(local&&(local.savedAt||0)>(S.savedAt||0)){S=norm(local);dirty=true;setTimeout(publish,500)}}
   else{S=norm(local||JSON.parse(JSON.stringify(DEFAULT)));known=null;const md=session.user.user_metadata||{};if(!S.me.nombre&&md.nombre)S.me.nombre=md.nombre;if(!S.me.correo)S.me.correo=session.user.email;dirty=true;setTimeout(publish,300)}
-  $('#accMail').textContent='Sesión iniciada como '+session.user.email+'.';
+  $('#accMail').textContent='Sesión iniciada como '+session.user.email+'.';setTimeout(()=>aulaSync('silent'),1500);
   U.per=(perOf(TODAY)||{}).id||'all';if(!per(U.ep))U.ep='';
   document.body.classList.remove('locked');if(/access_token|type=/.test(location.hash))history.replaceState(null,'',location.pathname+(TABS.includes(curTab())?'#'+curTab():''));
   route();setSave('ok');if(SS.y&&(!SS.tab||SS.tab===location.hash))requestAnimationFrame(()=>scrollTo(0,SS.y))}
