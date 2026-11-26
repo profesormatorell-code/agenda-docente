@@ -697,7 +697,7 @@ function norm(o){o=o&&typeof o==='object'?o:{};const A=v=>Array.isArray(v)?v:[],
   for(const k in x.days){const d=O(x.days[k]);d.files=A(d.files);x.days[k]=d}
   for(const k in x.weeks){const w=O(x.weeks[k]);w.tareas=A(w.tareas).filter(t=>t&&t.t);x.weeks[k]=w}
   for(const k in x.evals){const e=O(x.evals[k]);e.cols=A(e.cols).filter(c=>c&&c.id);e.marks=O(e.marks);x.evals[k]=e}
-  x.groups=A(o.groups).filter(g=>g&&g.id).map(g=>({...g,id:str(g.id),name:str(g.name||'Grupo'),students:A(g.students).filter(s=>s&&s.id).map(s=>({id:str(s.id),n:str(s.n)}))}));
+  x.groups=A(o.groups).filter(g=>g&&g.id).map(g=>({...g,id:str(g.id),name:str(g.name||'Grupo'),subs:A(g.subs).map(str).filter(Boolean),students:A(g.students).filter(s=>s&&s.id).map(s=>({id:str(s.id),n:str(s.n)}))}));
   for(const c of Object.values(O(sc.cells)))if(c&&c.s&&c.g&&!c.sp&&c.s!=='Institucional'){const n=str(c.g).trim();if(n&&!x.groups.some(g=>g.name.trim().toLowerCase()===n.toLowerCase()))x.groups.push({id:'g_'+n,name:n,students:[],...(sc.ex?{ex:1}:{})})}
   for(const k of ['tut','reun','compl','notes'])x[k]=A(o[k]).filter(r=>r&&r.id);
   const DC=[['con','Actividades de conocimiento',30,1],['eva','Evaluación del periodo',10,0],['pro','Actividades procedimentales',30,1],['het','Heteroevaluación',10,0],['aut','Autoevaluación',10,0],['coe','Coevaluación',10,0]];
@@ -945,15 +945,26 @@ function groupSide(){if(!grp(U.g))U.g=(S.groups[0]||{}).id||'';
 const sortG=L=>L.slice().sort((a,b)=>a.name.localeCompare(b.name,'es',{numeric:true}));
 function classInfo(g){const DN=['Lunes','Martes','Miércoles','Jueves','Viernes'],by={};const ids=new Set(S.sched.blocks.filter(b=>b.t!=='pausa').map(b=>b.id));
   Object.entries(S.sched.cells).forEach(([k,c])=>{const [bid,d]=k.split('|');if(!c||!c.s||c.sp||!ids.has(bid)||nkey(c.g)!==nkey(g.name))return;const o=by[c.s]=by[c.s]||{h:0,d:new Set()};o.h++;o.d.add(+d)});
-  return Object.entries(by).map(([sn,o])=>`<span class="sp" style="--c:${esc(subj(sn).c)};padding-right:12px">${esc(sn)} · ${o.h} h · ${[...o.d].sort().map(d=>DN[d]).join(', ')}</span>`).join('')}
+  return Object.entries(by).map(([sn,o])=>`<span class="sp" style="--c:${esc(subj(sn).c)};padding-right:12px">${esc(sn)} · ${o.h} h · ${[...o.d].sort().map(d=>DN[d]).join(', ')}</span>`).join('')
+    +(g.subs||[]).filter(sn=>!by[sn]).map(sn=>`<span class="sp" style="--c:${esc(subj(sn).c)}">${esc(sn)} · sin horario<button data-cus="${esc(sn)}" aria-label="Quitar ${esc(sn)} de este grupo">×</button></span>`).join('')}
+const subsOfG=g=>{const L=new Set(g.subs||[]);Object.values(S.sched.cells).forEach(c=>{if(c&&c.s&&!c.sp&&nkey(c.g)===nkey(g.name))L.add(c.s)});return [...L]};
+function newClass(sn,gn){gn=String(gn||'').trim().slice(0,30);if(!gn){toast('Escribe el grupo, por ejemplo 9°A');return null}
+  let g=S.groups.find(x=>nkey(x.name)===nkey(gn)),nuevo=!g;if(!g){g={id:uid(),name:gn,students:[],subs:[]};S.groups.push(g)}
+  if(sn&&!(g.subs=g.subs||[]).includes(sn))g.subs.push(sn);U.g=g.id;U.cq='';commit();
+  toast(nuevo?`Clase creada: ${sn?sn+' · ':''}${gn}. Ahora agrega sus estudiantes.`:`${sn?sn+' quedó en':'Ya existía'} el grupo ${g.name}`);return g}
 function cList(){const q=nkey(U.cq);const gs=sortG(S.groups).filter(x=>!q||nkey(x.name).includes(q));
   const st=q?S.groups.flatMap(g=>g.students.filter(s=>nkey(s.n).includes(q)).map(s=>({g,s}))).slice(0,30):[];
-  return `<div class="glist">${gs.map(x=>`<button class="gb${x.id===U.g?' on':''}" data-gsel="${esc(x.id)}">${esc(x.name)}<small>${x.students.length} ${x.students.length===1?'estudiante':'estudiantes'}</small></button>`).join('')||(q?'':'<p class="note">Aún no tienes grupos. Crea uno abajo o programa clases en el <a href="#horario">Horario</a>.</p>')}</div>
+  return `<div class="glist">${gs.map(x=>{const sb=subsOfG(x);return `<button class="gb${x.id===U.g?' on':''}" data-gsel="${esc(x.id)}"><span>${esc(x.name)}${sb.length?`<small style="display:block">${esc(sb.join(' · '))}</small>`:''}</span><small>${x.students.length} ${x.students.length===1?'est.':'est.'}</small></button>`}).join('')||(q?'':'<p class="note">Aún no tienes grupos. Crea tu primera clase arriba.</p>')}</div>
   ${st.length?`<p class="note">Estudiantes que coinciden:</p><div class="cres">${st.map(({g,s})=>`<button data-chl="${esc(g.id)}|${esc(s.id)}">${esc(s.n)} <small>· ${esc(g.name)}</small></button>`).join('')}</div>`:''}
   ${q&&!gs.length&&!st.length?'<p class="note">No hay grupos ni estudiantes con ese nombre.</p>':''}`}
 function rClases(){if(!grp(U.g))U.g=(sortG(S.groups)[0]||{}).id||'';const g=grp(U.g);
-  $('#cSide').innerHTML=`<section class="box"><h3>Mis grupos</h3><input class="inp" id="cQ" type="search" placeholder="Buscar grupo o estudiante" aria-label="Buscar grupo o estudiante" value="${esc(U.cq||'')}"><div id="cGl">${cList()}</div>
-  <div class="addrow"><input id="gIn" placeholder="Nuevo grupo, ej. 10°B" maxlength="30" aria-label="Nombre del grupo"><button class="btn" id="gAdd">Crear</button></div></section>
+  const subs=S.subjects.filter(x=>x.n!=='Institucional'),linked=new Set(S.groups.flatMap(subsOfG)),free=subs.filter(x=>!linked.has(x.n));
+  $('#cSide').innerHTML=`<section class="box" style="background:var(--p2)"><h3>Nueva clase</h3><p class="note">Elige la asignatura y escribe el grupo. Si el grupo ya existe, se le suma la asignatura.</p>
+  <label class="dnl">Asignatura<select class="inp" id="cNs"><option value="">Sin asignatura</option>${subs.map(x=>`<option${free[0]&&free[0].n===x.n?' selected':''}>${esc(x.n)}</option>`).join('')}</select></label>
+  <label class="dnl">Grupo<input class="inp" id="cNg" list="cNgL" placeholder="Ej. 9°A" maxlength="30"></label><datalist id="cNgL">${S.groups.map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
+  <button class="btn pri" id="cNb">Crear clase</button>
+  ${free.length?`<p class="note">Asignaturas de Mis datos que aún no tienen grupo: <b>${free.map(x=>esc(x.n)).join(', ')}</b>.</p>`:''}</section>
+  <section class="box"><h3>Mis grupos</h3><input class="inp" id="cQ" type="search" placeholder="Buscar grupo o estudiante" aria-label="Buscar grupo o estudiante" value="${esc(U.cq||'')}"><div id="cGl">${cList()}</div></section>
   <section class="box" style="background:var(--p0)"><h3>Importar estudiantes</h3>
   <p class="note"><b>Lo más fácil:</b> descarga la plantilla, escribe a tus estudiantes con su grupo y súbela. Los grupos se crean solos. También sirve cualquier Excel o CSV con una columna de nombre y otra de grupo, o una hoja por grupo.</p>
   <button class="btn" data-tpl>1. Descargar plantilla de Excel</button>
@@ -961,7 +972,8 @@ function rClases(){if(!grp(U.g))U.g=(sortG(S.groups)[0]||{}).id||'';const g=grp(
   <textarea class="inp" id="gImpT" style="min-height:110px" placeholder="…o pega aquí desde Excel, por ejemplo:&#10;Acosta Ruiz Valentina&#9;10°A&#10;Benítez Mora Samuel&#9;10°B" aria-label="Pegar estudiantes con su grupo"></textarea>
   <button class="btn pri" id="gImp">Importar lo pegado</button></section>`;
   $('#cQ').oninput=e=>{U.cq=e.target.value;$('#cGl').innerHTML=cList()};
-  if(!g){$('#cMain').innerHTML='<p class="empty">Crea tu primer grupo a la izquierda, importa tus listas o programa tus clases en el <a href="#horario">Horario</a>: cada grupo del horario aparece aquí.</p>';return}
+  $('#cNb').onclick=()=>newClass($('#cNs').value,$('#cNg').value);$('#cNg').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#cNb').click()}};
+  if(!g){$('#cMain').innerHTML='<p class="empty"><b>Aún no tienes clases con grupo.</b> En «Nueva clase» (a la izquierda) elige la asignatura, escribe el grupo, por ejemplo 9°A, y toca «Crear clase». Después podrás agregar los estudiantes aquí. También puedes subir todas tus listas con «Importar estudiantes», o programar tus clases en el <a href="#horario">Horario</a>: cada grupo del horario aparece aquí solo.</p>';return}
   const info=classInfo(g);
   $('#cMain').innerHTML=`<div class="tbar"><h3>${esc(g.name)} · ${g.students.length} ${g.students.length===1?'estudiante':'estudiantes'}</h3></div>
   <div class="cinfo" style="margin-bottom:14px">${info||'<span class="note">Este grupo no tiene clases en tu horario.</span>'}</div>
@@ -978,6 +990,7 @@ function rClases(){if(!grp(U.g))U.g=(sortG(S.groups)[0]||{}).id||'';const g=grp(
   $('#cAddB').onclick=()=>{const L=$('#cAdd').value.split('\n').map(x=>x.split('\t').filter(Boolean).join(' ').replace(/^\s*\d+[.)-]?\s+/,'').trim()).filter(Boolean);let n=0;
     L.forEach(v=>{if(!g.students.some(x=>nkey(x.n)===nkey(v))){g.students.push({id:uid(),n:v.slice(0,120)});n++}});delete g.ex;
     if(!n){toast(L.length?'Esos estudiantes ya estaban en la lista':'Escribe al menos un nombre');return}commit();toast(`${n} ${n===1?'estudiante agregado':'estudiantes agregados'} a ${g.name}`)};
+  document.querySelectorAll('#cMain [data-cus]').forEach(b=>b.onclick=()=>{g.subs=(g.subs||[]).filter(x=>x!==b.dataset.cus);commit()});
   document.querySelectorAll('#cMain [data-cmv]').forEach(b=>b.onclick=()=>{const [k,sid]=b.dataset.cmv.split('|');mvOpen(k,g,sid)});
   document.querySelectorAll('#cMain [data-crn]').forEach(b=>b.onclick=()=>{const st=g.students.find(x=>x.id===b.dataset.crn),v=prompt('Nombre del estudiante',st.n);if(v&&v.trim()&&v.trim()!==st.n){st.n=v.trim().slice(0,120);commit()}});
   if(U.chl){const r=document.querySelector('#cMain tr.hl');if(r)r.scrollIntoView({block:'center'});U.chl=''}}
