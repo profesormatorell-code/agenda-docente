@@ -1186,23 +1186,24 @@ function schoolYear(){const started=S.periods.filter(p=>p.start<=TODAY).sort((a,
 const plus1=d=>{const [y,m,dd]=d.split('-');return (+y+1)+'-'+m+'-'+(m==='02'&&dd==='29'?'28':dd)};
 function rEndYear(){const {y,ps,end}=schoolYear(),open=!end||TODAY>end,last=ps[ps.length-1];
   $('#endY').innerHTML=`<h3>Fin del año lectivo ${y}</h3>
-  <p class="note">Cuando termine el año puedes borrar los datos para empezar limpio el siguiente. Antes de hacerlo:</p>
+  ${open?`<p class="note">Cuando termine el año puedes borrar los datos para empezar limpio el siguiente. Antes de hacerlo:</p>`:`<p class="note">El año lectivo aún no termina (el último periodo cierra el ${fmt(end)} de ${end.slice(0,4)}). Si estabas probando la agenda, aquí puedes borrar lo que hiciste y empezar en limpio. Si ya tienes notas o asistencia reales, antes de borrar:</p>`}
   <ol><li><button class="btn sm" data-xls="anio"${last?` data-pid="${esc(last.id)}"`:''}>Descargar Excel del año</button> con las notas de los periodos y la definitiva.</li><li><button class="btn sm" id="bkBtn2">Guardar un respaldo</button> completo (cópialo a tu correo o a un archivo).</li></ol>
-  ${open?`<div style="display:grid;gap:8px"><label class="wopt"><input type="radio" name="wipe" value="year" checked><span><b>Borrar los datos del año</b>Actividades, planeaciones, grupos y estudiantes, asistencia, notas, citas, reuniones, actividades complementarias, notas personales y archivos adjuntos. Se conservan tus datos, asignaturas, horario y escala, y los periodos pasan al año ${+y+1} (revisa sus fechas).</span></label>
+  <div style="display:grid;gap:8px">${open?`<label class="wopt"><input type="radio" name="wipe" value="year" checked><span><b>Borrar los datos del año</b>Actividades, planeaciones, estudiantes (los grupos de tu horario quedan, vacíos), asistencia, notas, citas, reuniones, actividades complementarias, notas personales y archivos adjuntos. Se conservan tus datos, asignaturas, horario y escala, y los periodos pasan al año ${+y+1} (revisa sus fechas).</span></label>`
+  :`<label class="wopt"><input type="radio" name="wipe" value="test" checked><span><b>Borrar los registros (datos de prueba)</b>Actividades, planeaciones, estudiantes (los grupos de tu horario quedan, vacíos), asistencia, notas, citas, reuniones, actividades complementarias, notas personales y archivos adjuntos. Se conservan tus datos, asignaturas, horario, escala y periodos tal como están.</span></label>`}
   <label class="wopt"><input type="radio" name="wipe" value="all"><span><b>Borrar absolutamente todo</b>La agenda queda como nueva, incluido el horario y tus datos personales.</span></label></div>
   <label class="dnl">Escribe BORRAR para confirmar<input class="inp" id="wipeTxt" autocomplete="off" maxlength="10"></label>
-  <div><button class="btn danger" id="wipeGo">Borrar datos</button></div>`
-  :`<p class="note"><b>Disponible cuando termine el año lectivo</b>: el último periodo cierra el ${fmt(end)} de ${end.slice(0,4)}. Si las fechas no son correctas, ajústalas en <a href="#periodos">Periodos</a>.</p>`}`}
+  <div><button class="btn danger" id="wipeGo">Borrar datos</button></div>`}
 let wipeT=null;
-function wipe(kind){const {y}=schoolYear(),old=JSON.parse(JSON.stringify(S)),ids=filesOf(S,kind==='year');
+function wipe(kind){const {y}=schoolYear(),old=JSON.parse(JSON.stringify(S)),ids=filesOf(S,kind!=='all');
   if(kind==='all')S=norm(JSON.parse(JSON.stringify(DEFAULT)));
   else{['items','groups','tut','reun','compl','notes'].forEach(k=>S[k]=[]);['plans','days','months','weeks','att','evals'].forEach(k=>S[k]={});
-    const cur=S.periods.filter(p=>p.start.slice(0,4)===y),later=S.periods.filter(p=>p.start.slice(0,4)>y),hasNext=later.some(p=>p.start.slice(0,4)===String(+y+1));
-    S.periods=later.concat(hasNext?[]:cur.map(p=>({...p,id:uid(),start:plus1(p.start),end:plus1(p.end),goals:''}))).sort((a,b)=>a.start<b.start?-1:1);
+    if(kind==='year'){const cur=S.periods.filter(p=>p.start.slice(0,4)===y),later=S.periods.filter(p=>p.start.slice(0,4)>y),hasNext=later.some(p=>p.start.slice(0,4)===String(+y+1));
+    S.periods=later.concat(hasNext?[]:cur.map(p=>({...p,id:uid(),start:plus1(p.start),end:plus1(p.end),goals:''}))).sort((a,b)=>a.start<b.start?-1:1)}
     S.items=[];delete S.sched.ex}
+  S=norm(JSON.parse(JSON.stringify(S)));
   U.ep='';U.sel='';U.g='';U.per=(perOf(TODAY)||{}).id||'all';
   clearTimeout(wipeT);wipeT=setTimeout(()=>delFiles(ids),12000);
-  commit();toast(kind==='all'?'Se borró toda la agenda':'Se borraron los datos del año '+y,()=>{clearTimeout(wipeT);S=norm(old)})}
+  commit();toast(kind==='all'?'Se borró toda la agenda':kind==='test'?'Se borraron los registros de prueba':'Se borraron los datos del año '+y,()=>{clearTimeout(wipeT);S=norm(old)})}
 /* ===== Registros: familias, reuniones, complementarias ===== */
 const REC={
   familias:{k:'tut',add:'+ Nueva atención',empty:'Aún no registras atenciones a familias.',f:[['al','Estudiante','text',1],['cur','Curso','group'],['fecha','Fecha','date'],['hora','Hora','time'],['mot','Motivo académico','area'],['doc','Información del docente','area'],['fam','Información de la familia','area'],['acu','Propósitos acordados','area']],
