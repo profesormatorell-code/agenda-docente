@@ -883,8 +883,9 @@ const CYC=['','F','R','E'],MKN={'':'presente',F:'falta',R:'retardo',E:'excusa'};
 const schedGrades=()=>[...new Set(Object.values(S.sched.cells).filter(c=>c&&c.g&&c.s!=='Institucional').map(c=>c.g))];
 function groupSide(){if(!grp(U.g))U.g=(S.groups[0]||{}).id||'';const g=grp(U.g),sug=schedGrades().filter(n=>!S.groups.some(x=>x.name===n));
   return `<section class="box" style="background:var(--p0)"><h3>Importar estudiantes</h3>
-  <p class="note">Sube un Excel o CSV con una columna de <b>nombre</b> y otra de <b>grupo</b> (o curso / grado), o una hoja por grupo con el nombre del grupo en la pestaña. Los grupos que no existan se crean solos.</p>
-  <label class="btn up">Subir archivo (.xlsx, .csv)<input type="file" id="gImpF" accept=".xlsx,.xls,.csv,.txt"></label>
+  <p class="note"><b>Lo más fácil:</b> descarga la plantilla, escribe a tus estudiantes con su grupo y súbela. Los grupos se crean solos. También sirve cualquier Excel o CSV con una columna de nombre y otra de grupo, o una hoja por grupo.</p>
+  <button class="btn" data-tpl>1. Descargar plantilla de Excel</button>
+  <label class="btn up">2. Subir plantilla o archivo (.xlsx, .csv)<input type="file" id="gImpF" accept=".xlsx,.xls,.csv,.txt"></label>
   <textarea class="inp" id="gImpT" style="min-height:110px" placeholder="…o pega aquí desde Excel, por ejemplo:&#10;Acosta Ruiz Valentina&#9;10°A&#10;Benítez Mora Samuel&#9;10°B" aria-label="Pegar estudiantes con su grupo"></textarea>
   <button class="btn pri" id="gImp">Importar lo pegado</button></section>
   <section class="box"><h3>Grupos</h3><div class="glist">${S.groups.map(x=>`<button class="gb${x.id===U.g?' on':''}" data-gsel="${esc(x.id)}">${esc(x.name)}<small>${x.students.length} ${x.students.length===1?'estudiante':'estudiantes'}</small></button>`).join('')||'<p class="note">Crea tus grupos para llevar asistencia y notas.</p>'}</div>
@@ -916,7 +917,7 @@ function rowsToStudents(rows,defG){rows=rows.map(r=>r.map(clean)).filter(r=>r.so
   const w=Math.max(...rows.map(r=>r.length));
   if(!header){if(w>=2){const sc=[...Array(w).keys()].map(c=>rows.filter(r=>r[c]&&looksGroup(r[c])).length);gi=sc.indexOf(Math.max(...sc));if(sc[gi]<rows.length*0.6)gi=-1}
     const rest=[...Array(w).keys()].filter(c=>c!==gi&&rows.some(r=>r[c]&&!/^\d+$/.test(r[c])));ni=rest[0]??0;if(rest.length>1){ai=rest[0];ni=rest[1]}}
-  return rows.map(r=>{let n=ai>=0&&ni>=0&&ai!==ni?[r[ai],r[ni]].filter(Boolean).join(' '):r[ni>=0?ni:0]||'';n=n.replace(/^\d+[.)-]?\s+/,'');const g=gi>=0?r[gi]:defG;return {n,g}}).filter(x=>x.n&&x.g)}
+  return rows.filter(r=>r.some((v,c)=>v&&c!==gi&&!/^\d+$/.test(v))).map(r=>{let n=ai>=0&&ni>=0&&ai!==ni?[r[ai],r[ni]].filter(Boolean).join(' '):r[ni>=0?ni:0]||'';n=n.replace(/^\d+[.)-]?\s+/,'');const g=gi>=0?r[gi]:defG;return {n,g}}).filter(x=>x.n&&x.g)}
 function textRows(t){const L=t.split(/\r?\n/);const d=t.includes('\t')?'\t':t.includes(';')?';':/grupo|curso|grado/i.test(L[0]||'')?',':null;return L.map(l=>d?l.split(d):[l])}
 function applyImport(list){if(!list.length){toast('No encontré nombres con su grupo. Revisa que haya una columna de grupo.');return}
   const old=JSON.parse(JSON.stringify(S.groups));let nNew=0,gNew=0;const touched=new Set();
@@ -924,9 +925,32 @@ function applyImport(list){if(!list.length){toast('No encontré nombres con su g
     touched.add(G.name);if(!G.students.some(x=>x.n.toLowerCase()===n.toLowerCase())){G.students.push({id:uid(),n});nNew++}delete G.ex});
   if(!grp(U.g)||!touched.has(grp(U.g).name))U.g=S.groups.find(x=>touched.has(x.name)).id;
   commit();toast(`${nNew===1?'Importado 1 estudiante':`Importados ${nNew} estudiantes`} en ${touched.size} ${touched.size===1?'grupo':'grupos'}${gNew?` (${gNew} ${gNew===1?'nuevo':'nuevos'})`:''}`,()=>{S.groups=old})}
+/* plantilla de Excel para cargar estudiantes */
+async function excelTemplate(){toast('Preparando la plantilla…');const X=await loadXL(),wb=X.utils.book_new();
+  const known=[...new Set(S.groups.map(g=>g.name).concat(schedGrades()))];
+  const ins=[['Plantilla de estudiantes · Agenda docente'],[],
+    ['Cómo llenarla'],
+    ['1. Ve a la hoja «Estudiantes» (pestaña de abajo).'],
+    ['2. Escribe un estudiante por fila: apellidos, nombres y el grupo al que pertenece.'],
+    ['3. Escribe el grupo siempre igual, por ejemplo 6°A, 10°B o 1101. Cada grupo distinto se crea como un curso.'],
+    ['4. Puedes poner a todos tus grupos en la misma hoja, en el orden que quieras.'],
+    ['5. Guarda el archivo y súbelo en Asistencia → Importar estudiantes → «Subir plantilla o archivo».'],
+    [],
+    ['Ten en cuenta'],
+    ['• No cambies los títulos de las columnas (No., Apellidos, Nombres, Grupo).'],
+    ['• La columna No. es opcional.'],
+    ['• Si un estudiante ya está en su grupo, no se repite. Puedes volver a subir la plantilla para agregar estudiantes nuevos.'],
+    ['• Esta hoja de instrucciones no se importa.'],
+    [],['Ejemplo de cómo se ve la hoja «Estudiantes»'],['No.','Apellidos','Nombres','Grupo'],[1,'Acosta Ruiz','Valentina','10°A'],[2,'Benítez Mora','Samuel','10°A'],[3,'Cárdenas López','Isabella','10°B']]
+    .concat(known.length?[[],['Tus grupos según tu horario'],...known.map(g=>[g])]:[]);
+  const wi=X.utils.aoa_to_sheet(ins);wi['!cols']=[{wch:100},{wch:18},{wch:18},{wch:10}];
+  const rows=[['No.','Apellidos','Nombres','Grupo']];for(let i=1;i<=60;i++)rows.push([i,'','','']);
+  const we=X.utils.aoa_to_sheet(rows);we['!cols']=[{wch:6},{wch:30},{wch:30},{wch:12}];
+  X.utils.book_append_sheet(wb,wi,'Instrucciones');X.utils.book_append_sheet(wb,we,'Estudiantes');
+  await saveX(X,wb,'Plantilla estudiantes - Agenda docente.xlsx')}
 async function importFile(f){try{
   if(/\.(xlsx|xls)$/i.test(f.name)){const X=await loadXL(),wb=X.read(await f.arrayBuffer(),{type:'array'});let all=[];
-    wb.SheetNames.forEach(sn=>{const rows=X.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:false});all=all.concat(rowsToStudents(rows,wb.SheetNames.length>1?clean(sn):''))});applyImport(all)}
+    wb.SheetNames.filter(sn=>!/instrucc|ayuda|l[eé]eme/i.test(sn)).forEach(sn=>{const rows=X.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:'',raw:false});all=all.concat(rowsToStudents(rows,wb.SheetNames.filter(n=>!/instrucc|ayuda|l[eé]eme/i.test(n)).length>1?clean(sn):''))});applyImport(all)}
   else applyImport(rowsToStudents(textRows(await f.text()),''))}catch(e){toast('No pude leer el archivo. Guárdalo como .xlsx o .csv e inténtalo de nuevo.')}}
 /* ===== Evaluaciones ===== */
 const dsp=v=>v==null?'':v<S.scale.b?['bajo','Bajo']:v<S.scale.a?['basico','Básico']:v<S.scale.s?['alto','Alto']:['superior','Superior'];
@@ -1188,6 +1212,7 @@ document.addEventListener('click',e=>{const t=e.target,hit=s=>t.closest(s);let x
   if(x=hit('[data-bdel]')){const i=+x.dataset.bdel,B=S.sched.blocks,b=B[i],cells={};Object.keys(S.sched.cells).forEach(k=>{if(k.startsWith(b.id+'|')){cells[k]=S.sched.cells[k];delete S.sched.cells[k]}});
     B.splice(i,1);commit();toast(`Franja de ${b.ini} quitada`,()=>{B.splice(i,0,b);Object.assign(S.sched.cells,cells)});return}
   if(x=hit('[data-wtd]')){const W=ensureWeek(),i=+x.dataset.wtd,r=W.tareas.splice(i,1)[0];commit();toast('Tarea quitada',()=>W.tareas.splice(i,0,r));return}
+  if(x=hit('[data-tpl]')){excelTemplate().catch(()=>toast('No se pudo preparar la plantilla'));return}
   if(x=hit('[data-gsel]')){U.g=x.dataset.gsel;render();return}
   if(x=hit('[data-gnew]')){const g={id:uid(),name:x.dataset.gnew,students:[]};S.groups.push(g);U.g=g.id;commit();return}
   if(x=hit('[data-am]')){const n=+x.dataset.am;if(!n)U.am=TODAY.slice(0,7);else{const [y,m]=U.am.split('-').map(Number);U.am=iso(new Date(y,m-1+n,1)).slice(0,7)}render();return}
