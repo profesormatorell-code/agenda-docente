@@ -101,7 +101,7 @@ body[data-tab=tareas] .bar1,body[data-tab=mensual] .bar1{display:flex}
 .dgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;max-width:820px}
 .dl{display:grid;gap:6px;font-weight:700;font-size:14px}
 .dl>span{background:var(--p);padding:4px 12px;border-radius:8px;justify-self:start}
-.dl input,.dl textarea{min-height:44px;font-size:16px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-weight:400;width:100%}
+.dl input,.dl textarea,.dl select{min-height:44px;font-size:16px;padding:8px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);font-weight:400;width:100%}
 .dl.w{grid-column:1/-1}
 .subs{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
 .sp{display:inline-flex;align-items:center;gap:6px;padding:4px 4px 4px 12px;border-radius:99px;border:1px solid var(--line);font-weight:700;color:var(--c);background:var(--card)}
@@ -771,8 +771,8 @@ const chip=i=>`<button class="chip ${i.st}" data-id="${esc(i.id)}" style="--c:${
 const row=i=>`<li class="rw" data-id="${esc(i.id)}" style="--c:${esc(subj(i.s).c)}" tabindex="0"><time class="${isLate(i)?'late':''}">${fmtL(i.d)}</time><span class="rt">${esc(i.t)}${i.g?` <small class="sub">· ${esc(i.g)}</small>`:''}</span><span class="sub">${esc(subj(i.s).n)}</span><span class="stb ${i.st}">${STL[i.st]}</span></li>`;
 
 /* ===== Mis datos ===== */
-const MEF=[['nombre','Nombre'],['apellidos','Apellidos'],['tel','Teléfono'],['correo','Correo electrónico'],['inst','Institución'],['sede','Sede / jornada'],['otros','Otros datos',1]];
-function rDatos(){$('#datosF').innerHTML=MEF.map(([k,l,w],i)=>`<label class="dl${w?' w':''}" style="--p:${PV(i)}"><span>${l}</span>${w?`<textarea data-me="${k}" rows="4">${esc(S.me[k]||'')}</textarea>`:`<input data-me="${k}" value="${esc(S.me[k]||'')}" maxlength="120"${k==='correo'?' type="email"':k==='tel'?' type="tel"':''}>`}</label>`).join('');
+const MEF=[['nombre','Nombre'],['apellidos','Apellidos'],['tel','Teléfono'],['correo','Correo electrónico'],['inst','Institución'],['sede','Sede',0,['A','B']],['jornada','Jornada',0,['Mañana','Tarde','Media']],['otros','Otros datos',1]];
+function rDatos(){$('#datosF').innerHTML=MEF.map(([k,l,w,o],i)=>`<label class="dl${w?' w':''}" style="--p:${PV(i)}"><span>${l}</span>${o?`<select data-me="${k}"><option value="">Elegir…</option>${o.concat(S.me[k]&&!o.includes(S.me[k])?[S.me[k]]:[]).map(v=>`<option${S.me[k]===v?' selected':''}>${esc(v)}</option>`).join('')}</select>`:w?`<textarea data-me="${k}" rows="4">${esc(S.me[k]||'')}</textarea>`:`<input data-me="${k}" value="${esc(S.me[k]||'')}" maxlength="120"${k==='correo'?' type="email"':k==='tel'?' type="tel"':''}>`}</label>`).join('');
   $('#subsL').innerHTML=S.subjects.map(s=>`<span class="sp" style="--c:${esc(s.c)}">${esc(s.n)}<button data-rsub="${esc(s.n)}" aria-label="Quitar ${esc(s.n)}">×</button></span>`).join('')+'<span class="addrow"><input id="nSub" placeholder="Nueva asignatura" maxlength="30" aria-label="Nueva asignatura"><button class="btn" id="aSub">Agregar</button></span>';rEndYear()}
 
 /* ===== Horario ===== */
