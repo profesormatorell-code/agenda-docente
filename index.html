@@ -8,7 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Lexend:wght@500;600&family=Atkinson+Hyperlegible:wght@400;700&family=Caveat:wght@600;700&display=swap" rel="stylesheet">
 <script src="config.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
+<script src="vendor/supabase.js"></script>
+<script>window.supabase||document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"><\/script>')</script>
 <script type="application/json" id="data">{"savedAt":0,"me":{},"subjects":[],"periods":[{"id":"p1","name":"Periodo 1","start":"2027-01-25","end":"2027-05-07","goals":"","w":30},{"id":"p2","name":"Periodo 2","start":"2027-05-10","end":"2027-08-27","goals":"","w":30},{"id":"p3","name":"Periodo 3","start":"2027-08-30","end":"2027-11-26","goals":"","w":40}],"items":[],"sched":{"blocks":[{"id":"b1","ini":"06:30","fin":"07:25","t":"clase","lbl":""},{"id":"b2","ini":"07:25","fin":"08:20","t":"clase","lbl":""},{"id":"b3","ini":"08:20","fin":"09:15","t":"clase","lbl":""},{"id":"d1","ini":"09:15","fin":"09:45","t":"pausa","lbl":"Descanso"},{"id":"b4","ini":"09:45","fin":"10:40","t":"clase","lbl":""},{"id":"b5","ini":"10:40","fin":"11:35","t":"clase","lbl":""},{"id":"b6","ini":"11:35","fin":"12:30","t":"clase","lbl":""},{"id":"b7","ini":"12:30","fin":"13:25","t":"clase","lbl":""}],"cells":{},"file":null},"plans":{},"days":{},"months":{},"weeks":{},"groups":[],"att":{},"evals":{},"tut":[],"reun":[],"compl":[],"notes":[],"scale":{"min":20,"max":100,"b":60,"a":80,"s":90,"dec":0}}</script>
 <style>
 /* VOICE: warm, practical — the teacher's own classroom, tidy enough for daily work
@@ -907,7 +908,8 @@ function rAsistencia(){$('#aSide').innerHTML=groupSide();const g=grp(U.g);
   <div class="legend"><span><span class="ac F">F</span> Falta</span><span><span class="ac R">R</span> Retardo</span><span><span class="ac E">E</span> Excusa</span><span>Columnas en azul: días en que tienes clase con este grupo.</span></div>`:'<p class="empty">Agrega la lista de estudiantes del grupo para llevar la asistencia.</p>'}`}
 
 /* importar estudiantes con su grupo */
-let xl;const loadXL=()=>xl||(xl=new Promise((ok,ko)=>{const sc=document.createElement('script');sc.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';sc.onload=()=>window.XLSX?ok(window.XLSX):ko();sc.onerror=()=>{xl=null;ko()};document.head.appendChild(sc)}));
+const loadLib=(srcs,name)=>new Promise((ok,ko)=>{const tryN=i=>{if(window[name])return ok(window[name]);if(i>=srcs.length)return ko();const sc=document.createElement('script');sc.src=srcs[i];sc.onload=()=>window[name]?ok(window[name]):tryN(i+1);sc.onerror=()=>{sc.remove();tryN(i+1)};document.head.appendChild(sc)};tryN(0)});
+let xl;const loadXL=()=>xl||(xl=loadLib(['vendor/xlsx.full.min.js','https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'],'XLSX').catch(e=>{xl=null;throw e}));
 const clean=v=>String(v??'').replace(/\s+/g,' ').trim();
 const looksGroup=v=>/\d/.test(v)&&v.length<=10;
 /* filas -> [{n,g}] ; defG: grupo por defecto (nombre de la hoja o grupo seleccionado) */
@@ -1127,7 +1129,7 @@ $('#dDel').onclick=e=>{if(!armed(e.target,'¿Seguro? Eliminar'))return;const it=
 $('#newBtn').onclick=()=>openEdit(null,curTab()==='dia'?{d:U.day}:{});
 
 /* ===== archivos ===== */
-let mam;const loadMam=()=>mam||(mam=new Promise((ok,ko)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';s.onload=()=>window.mammoth?ok(window.mammoth):ko();s.onerror=()=>{mam=null;ko()};document.head.appendChild(s)}));
+let mam;const loadMam=()=>mam||(mam=loadLib(['vendor/mammoth.browser.min.js','https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js'],'mammoth').catch(e=>{mam=null;throw e}));
 async function docxText(f){try{const m=await loadMam();const r=await m.extractRawText({arrayBuffer:await f.arrayBuffer()});return r.value.replace(/\n{3,}/g,'\n\n').trim()}catch(e){toast('No pude leer el Word. Guárdalo como PDF y súbelo.');return null}}
 const okType=f=>/^(image\/|application\/pdf|text\/)/.test(f.type)||/\.(pdf|txt|md|png|jpe?g|gif|webp)$/i.test(f.name);
 async function putFile(f){if(!sb||!UID){toast('Inicia sesión para subir archivos.');return null}
@@ -1330,7 +1332,7 @@ async function enter(session){if(!session)return;UID=session.user.id;
 $('#outBtn').onclick=async()=>{clearTimeout(tmr);if(dirty)await publish();await sb.auth.signOut();try{localStorage.removeItem(cacheKey())}catch(_){}location.replace(location.pathname)};
 $('#pwSave').onclick=async()=>{const v=$('#newPw').value;if(v.length<8){toast('La contraseña debe tener al menos 8 caracteres');return}const {error}=await sb.auth.updateUser({password:v});$('#newPw').value='';toast(error?'No se pudo cambiar la contraseña':'Contraseña actualizada')};
 (async()=>{
-  if(!sb){$('#af').hidden=true;$('.alinks').hidden=true;amsg('Falta configurar la conexión: abre config.js y pega la URL y la clave de tu proyecto de Supabase (ver la guía).','err');return}
+  if(!sb){$('#af').hidden=true;$('.alinks').hidden=true;amsg(!window.supabase?'No se pudo cargar el componente de conexión. Recarga la página con Ctrl+F5; si sigue igual, desactiva el bloqueador de anuncios para este sitio o prueba con otra red.':'Falta configurar la conexión: abre config.js y pega la URL y la clave de tu proyecto de Supabase (ver la guía).','err');return}
   const recovering=/type=(recovery|invite)/.test(location.hash);
   sb.auth.onAuthStateChange((ev)=>{if(ev==='PASSWORD_RECOVERY')setMode('newpw')});
   setMode('in');
