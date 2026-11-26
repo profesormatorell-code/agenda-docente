@@ -277,6 +277,8 @@ ul.rows{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
 .cres{display:grid;gap:4px}.cres button{text-align:left;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 10px;font-size:14px}.cres small{color:var(--mute)}
 .cinfo{display:flex;flex-wrap:wrap;gap:6px}
 .arow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.arow .inp{flex:1 1 140px;min-width:150px}.arow .wopt>span{flex:1}
+.md.fe{color:#c0392b!important;font-weight:800}.pl.bkl.fest{background:#ffd9d1;color:#8a1f0f}.pl.bkl.inst{background:#e3dcff}
+.irow{border-left:4px solid #c0392b;padding-left:8px}
 .md.bk{background:repeating-linear-gradient(135deg,var(--pane) 0 4px,transparent 4px 8px);color:var(--mute);text-decoration:line-through}
 .cell.bkc{background:repeating-linear-gradient(135deg,var(--pane) 0 6px,transparent 6px 12px)}.pl.bkl{background:var(--hi2,#ffe9a8)}
 .wk.bkw{opacity:.75;background:repeating-linear-gradient(135deg,var(--pane) 0 6px,transparent 6px 12px)}.none.brkn{font-weight:700;color:var(--ink)}
@@ -508,7 +510,7 @@ dialog::backdrop{background:rgba(10,14,40,.5)}
       <button class="icon" id="dNext" aria-label="Día siguiente">›</button>
     </div>
     <div class="dwrap">
-      <div><p class="dsum" id="dSum"></p><div class="dclasses" id="dClasses"></div></div>
+      <div><p class="dsum" id="dSum"></p><div class="dclasses" id="dClasses"></div><section class="box" id="dInst" style="margin-top:14px"></section></div>
       <aside class="dside">
         <section class="box">
           <h3>Planeación general del día</h3>
@@ -531,6 +533,7 @@ dialog::backdrop{background:rgba(10,14,40,.5)}
     <div class="sh"><h2>Periodos</h2><p class="note">El trazado de la planeación de cada periodo: avance, semanas y metas.</p></div>
     <div class="pwrap"><div class="plist" id="plist"></div><div class="pdet" id="pdet"></div></div>
     <section class="box" id="brkBox" style="margin-top:22px;max-width:980px"></section>
+    <section class="box" id="instBox" style="margin-top:16px;max-width:980px"></section>
   </section>
 
   <section class="view" id="v-clases">
@@ -708,6 +711,7 @@ function norm(o){o=o&&typeof o==='object'?o:{};const A=v=>Array.isArray(v)?v:[],
   for(const k in x.weeks){const w=O(x.weeks[k]);w.tareas=A(w.tareas).filter(t=>t&&t.t);x.weeks[k]=w}
   for(const k in x.evals){const e=O(x.evals[k]);e.cols=A(e.cols).filter(c=>c&&c.id);e.marks=O(e.marks);x.evals[k]=e}
   x.breaks=A(o.breaks).filter(b=>b&&ISO.test(b.start)&&ISO.test(b.end)).map(b=>({id:str(b.id||Math.random().toString(36).slice(2)),name:str(b.name||'Receso'),start:b.start<=b.end?b.start:b.end,end:b.start<=b.end?b.end:b.start}));if(!Array.isArray(o.breaks))addDefBreaks(x);
+  x.inst=A(o.inst).filter(e=>e&&e.id&&ISO.test(e.start)).map(e=>({id:str(e.id),t:['jornada','comision','boletines','academica','otro'].includes(e.t)?e.t:'otro',name:str(e.name||'Día institucional'),start:e.start,end:ISO.test(e.end)&&e.end>=e.start?e.end:e.start,ini:/^\d\d:\d\d$/.test(e.ini)?e.ini:'',fin:/^\d\d:\d\d$/.test(e.fin)?e.fin:''}));
   x.groups=A(o.groups).filter(g=>g&&g.id).map(g=>({...g,id:str(g.id),name:str(g.name||'Grupo'),subs:A(g.subs).map(str).filter(Boolean),students:A(g.students).filter(s=>s&&s.id).map(s=>({id:str(s.id),n:str(s.n)}))}));
   for(const c of Object.values(O(sc.cells)))if(c&&c.s&&c.g&&!c.sp&&c.s!=='Institucional'){const n=str(c.g).trim();if(n&&!x.groups.some(g=>g.name.trim().toLowerCase()===n.toLowerCase()))x.groups.push({id:'g_'+n,name:n,students:[],...(sc.ex?{ex:1}:{})})}
   for(const k of ['tut','reun','compl','notes'])x[k]=A(o[k]).filter(r=>r&&r.id);
@@ -888,7 +892,7 @@ function renderNow(){const nm=S.me.nombre||'';const h=new Date().getHours(),d=pd
   const xs=S.items.filter(i=>i.d>=p.start&&i.d<=p.end),c=k=>xs.filter(i=>i.st===k).length;
   const late=xs.filter(isLate).length;let left=0;
   const cl=classesOf(TODAY),pl=cl.filter(x=>hasPlan(S.plans[TODAY+'|'+x.b.id])).length;
-  const PW=perWeeks(p).filter(z=>z.n),nW=Math.max(1,PW.length),cw=PW.findIndex(z=>TODAY>=z.w&&TODAY<=z.e0),bNow=brk(TODAY),wk=cw>=0?cw+1:Math.max(1,PW.filter(z=>z.e0<TODAY).length);
+  const PW=perWeeks(p).filter(z=>z.n),nW=Math.max(1,PW.length),cw=PW.findIndex(z=>TODAY>=z.w&&TODAY<=z.e0),bNow=dIdx(TODAY)<5?offDay(TODAY):null,wk=cw>=0?cw+1:Math.max(1,PW.filter(z=>z.e0<TODAY).length);
   let sdT=0,sdE=0;for(let x=pd(p.start);iso(x)<=p.end;x=add(x,1)){const ds=iso(x);if(schoolDay(ds)){sdT++;if(ds<TODAY)sdE++}}
   const el=p.start>TODAY?0:Math.min(100,(cw>=0?cw+(dIdx(TODAY)<5?Math.min(5,dIdx(TODAY)+.5)/5:1):PW.filter(z=>z.e0<TODAY).length)/nW*100);left=Math.max(0,sdT-sdE-(schoolDay(TODAY)?0:0));
   $('#now').innerHTML=`<div><b>${esc(p.name)}</b><br><small>${fmt(p.start)} – ${fmt(p.end)}</small></div>
@@ -908,15 +912,27 @@ function renderFilters(){
 const dIdx=ds=>(pd(ds).getDay()+6)%7;
 const SPC={'reunión de nivel':'#4c56c4','atención a padres':'#c0396b','trabajo pedagógico':'#0e8a7a','consejo académico':'#d9661f','reunión de área':'#3f8f3a'},SPP=['#4c56c4','#c0396b','#0e8a7a','#d9661f','#3f8f3a','#9b3fa8','#8a5a2b','#2f7fb0'];
 const spC=v=>{const k=String(v||'').trim().toLowerCase();if(SPC[k])return SPC[k];let h=0;for(const ch of k)h=(h*31+ch.charCodeAt(0))>>>0;return SPP[h%SPP.length]};
-function spacesOf(ds){const k=dIdx(ds);if(k>4||brk(ds))return[];return S.sched.blocks.filter(b=>b.t!=='pausa').map(b=>({b,c:S.sched.cells[b.id+'|'+k]})).filter(x=>x.c&&x.c.sp)}
+function spacesOf(ds){const k=dIdx(ds);if(k>4||offDay(ds))return[];return S.sched.blocks.filter(b=>b.t!=='pausa').map(b=>({b,c:S.sched.cells[b.id+'|'+k]})).filter(x=>x.c&&x.c.sp)}
 const brk=ds=>S.breaks.find(b=>ds>=b.start&&ds<=b.end)||null;
-const schoolDay=ds=>dIdx(ds)<5&&!brk(ds);
+/* festivos de Colombia (Ley Emiliani) y días institucionales */
+const FEST={};function festivos(y){if(FEST[y])return FEST[y];const M={},put=(d,n)=>{M[iso(d)]=n},em=(m,d,n)=>{const x=new Date(y,m-1,d);put(add(x,(8-x.getDay())%7),n)},E=easter(y);
+  put(new Date(y,0,1),'Año Nuevo');em(1,6,'Día de los Reyes Magos');em(3,19,'Día de San José');put(add(E,-3),'Jueves Santo');put(add(E,-2),'Viernes Santo');put(new Date(y,4,1),'Día del Trabajo');
+  put(add(E,43),'Ascensión del Señor');put(add(E,64),'Corpus Christi');put(add(E,71),'Sagrado Corazón');em(6,29,'San Pedro y San Pablo');put(new Date(y,6,20),'Día de la Independencia');put(new Date(y,7,7),'Batalla de Boyacá');
+  em(8,15,'Asunción de la Virgen');em(10,12,'Día de la Raza');em(11,1,'Todos los Santos');em(11,11,'Independencia de Cartagena');put(new Date(y,11,8),'Inmaculada Concepción');put(new Date(y,11,25),'Navidad');return FEST[y]=M}
+const fest=ds=>festivos(+ds.slice(0,4))[ds]||null;
+const ITYPES={jornada:'Jornada pedagógica',comision:'Comisión de evaluación y promoción',boletines:'Entrega de boletines',academica:'Actividad académica (con hora)',otro:'Otro día institucional (sin clases)'};
+const instOn=ds=>S.inst.filter(e=>ds>=e.start&&ds<=(e.end||e.start));
+const acadOn=ds=>instOn(ds).filter(e=>e.t==='academica'&&e.ini&&e.fin);
+function offDay(ds){const f=fest(ds);if(f)return {name:f,kind:'fest'};const e=instOn(ds).find(e=>e.t!=='academica');if(e)return {name:e.name,kind:'inst'};const b=brk(ds);return b?{name:b.name,kind:'brk'}:null}
+const schoolDay=ds=>dIdx(ds)<5&&!offDay(ds);
+const ovl=(b,e)=>b.ini<e.fin&&e.ini<b.fin;
+const evItems=ds=>acadOn(ds).map(e=>({b:{ini:e.ini,fin:e.fin},c:{ev:e}}));
 /* semanas del periodo que cuentan (las de receso no se numeran) */
 function perWeeks(p){const L=[];let w=mon(pd(p.start)),n=0;for(let k=0;iso(w)<=p.end&&k<60;k++,w=add(w,7)){const a=iso(w)<p.start?p.start:iso(w),e0=iso(add(w,6)),b=e0>p.end?p.end:e0;
   let sd=0;for(let x=pd(a);iso(x)<=b;x=add(x,1))if(schoolDay(iso(x)))sd++;const days=[];for(let x=pd(a);iso(x)<=b;x=add(x,1))if(dIdx(iso(x))<5)days.push(iso(x));
-  const br=sd?null:(days.map(brk).find(Boolean)||null);L.push({w:iso(w),a,b,e0,n:sd||!days.length?++n:null,br})}return L.filter(x=>x.n||x.br)}
+  const br=sd?null:(days.map(offDay).find(Boolean)||null);L.push({w:iso(w),a,b,e0,n:sd||!days.length?++n:null,br})}return L.filter(x=>x.n||x.br)}
 function weekLbl(p,ds){const W=perWeeks(p),x=W.find(z=>ds>=z.w&&ds<=z.e0);if(!x)return '';const nW=W.filter(z=>z.n).length;return x.n?`semana ${x.n} de ${nW}`:`${x.br.name} (sin clases)`}
-function classesOf(ds){const k=dIdx(ds);if(k>4||brk(ds))return[];return S.sched.blocks.filter(b=>b.t!=='pausa').map(b=>({b,c:S.sched.cells[b.id+'|'+k]})).filter(x=>x.c&&x.c.s)}
+function classesOf(ds){const k=dIdx(ds);if(k>4||offDay(ds))return[];const ev=acadOn(ds);return S.sched.blocks.filter(b=>b.t!=='pausa').map(b=>({b,c:S.sched.cells[b.id+'|'+k]})).filter(x=>x.c&&x.c.s&&!ev.some(e=>ovl(x.b,e)))}
 function hasPlan(p){return !!(p&&(p.tema||p.obj||p.desa||(p.files&&p.files.length)))}
 function dayPlanned(ds){const D=S.days[ds];return Object.keys(S.plans).some(k=>k.startsWith(ds+'|')&&hasPlan(S.plans[k]))||!!(D&&(D.notes||(D.files||[]).length))}
 const signedCache={};
@@ -972,7 +988,7 @@ function rAnual(){const y=U.year,P=S.periods.slice().sort((a,b)=>a.start<b.start
   $('#anLg').innerHTML=P.filter(p=>p.start.slice(0,4)<=y&&p.end.slice(0,4)>=y).map(p=>`<span style="--p:${PV(P.indexOf(p))}">${esc(p.name)} · ${fmt(p.start)} – ${fmt(p.end)}</span>`).join('')||'<span class="note">No hay periodos configurados en este año.</span>';
   const act=new Set(S.items.map(i=>i.d));S.reun.forEach(r=>act.add(r.fecha));S.tut.forEach(r=>act.add(r.fecha));S.compl.forEach(r=>{if(r.ini)for(let d=pd(r.ini),k=0;iso(d)<=(r.fin||r.ini)&&k<90;d=add(d,1),k++)act.add(iso(d))});
   $('#anGrid').innerHTML=MES.map((m,mi)=>{const first=new Date(y,mi,1),off=(first.getDay()+6)%7,last=new Date(y,mi+1,0).getDate();let c='LMXJVSD'.split('').map(h=>`<span class="h">${h}</span>`).join('')+'<span></span>'.repeat(off);
-    for(let d=1;d<=last;d++){const ds=iso(new Date(y,mi,d)),k=pi(ds),we=dIdx(ds)>4;const bk=brk(ds);c+=`<button class="md${k>=0&&!we&&!bk?' pc':''}${we?' we':''}${bk&&!we?' bk':''}${bk?`" title="${esc(bk.name)}`:''}${ds===TODAY?' t':''}${act.has(ds)?' a':''}" data-day="${ds}" style="--p:${PV(k)}" aria-label="${fmtL(ds)}">${d}</button>`}
+    for(let d=1;d<=last;d++){const ds=iso(new Date(y,mi,d)),k=pi(ds),we=dIdx(ds)>4;const bk=offDay(ds);c+=`<button class="md${k>=0&&!we&&!bk?' pc':''}${we?' we':''}${bk&&!we?' bk':''}${bk&&bk.kind==='fest'?' fe':''}${bk?`" title="${esc(bk.name)}`:acadOn(ds).length?`" title="${esc(acadOn(ds).map(e=>e.ini+' '+e.name).join(' · '))}`:''}${ds===TODAY?' t':''}${act.has(ds)?' a':''}" data-day="${ds}" style="--p:${PV(k)}" aria-label="${fmtL(ds)}">${d}</button>`}
     return `<div class="mm"><h3><button data-month="${y}-${String(mi+1).padStart(2,'0')}">${cap1(m)}</button></h3><div class="mg">${c}</div></div>`}).join('')}
 
 /* ===== Mensual ===== */
@@ -980,7 +996,7 @@ function rMensual(){const [y,m]=U.cal.split('-').map(Number),first=new Date(y,m-
   L.forEach(i=>(by[i.d]=by[i.d]||[]).push(i));
   const last=new Date(y,m,0),weeks=Math.ceil(((first.getDay()+6)%7+last.getDate())/7);let h='';
   for(let k=0;k<weeks*7;k++){const d=add(start,k),ds=iso(d),xs=(by[ds]||[]).sort(byDate),ex=extrasOn(ds),p=perOf(ds),all=xs.length+ex.length;
-    h+=`<div class="cell${d.getMonth()!==m-1?' out':''}${ds===TODAY?' today':''}${p&&!brk(ds)?' inp':''}${brk(ds)&&dIdx(ds)<5?' bkc':''}" data-d="${ds}" aria-label="${fmtL(ds)}"><span class="dn">${d.getDate()}</span>${brk(ds)&&dIdx(ds)<5&&(ds===brk(ds).start||dIdx(ds)===0)?`<span class="pl bkl">${esc(brk(ds).name)}</span>`:''}${p&&p.start===ds?`<span class="pl">Inicia ${esc(p.name)}</span>`:''}${p&&p.end===ds?`<span class="pl">Cierra ${esc(p.name)}</span>`:''}${dayPlanned(ds)?`<button class="pmk" data-day="${ds}">Planeación</button>`:''}${ex.slice(0,2).map(xchip).join('')}${xs.slice(0,Math.max(0,3-Math.min(2,ex.length))).map(chip).join('')}${all>3?`<span class="more">+${all-3} más</span>`:''}</div>`}
+    h+=`<div class="cell${d.getMonth()!==m-1?' out':''}${ds===TODAY?' today':''}${p&&!brk(ds)?' inp':''}${offDay(ds)&&dIdx(ds)<5?' bkc':''}" data-d="${ds}" aria-label="${fmtL(ds)}"><span class="dn">${d.getDate()}</span>${(()=>{const o=offDay(ds);if(!o||(dIdx(ds)>4&&o.kind!=='fest')||(o.kind==='brk'&&!(ds===brk(ds).start||dIdx(ds)===0)))return '';return `<span class="pl bkl ${o.kind}">${esc(o.name)}</span>`})()}${acadOn(ds).map(e=>`<span class="pl bkl">${esc(e.ini)} ${esc(e.name)}</span>`).join('')}${p&&p.start===ds?`<span class="pl">Inicia ${esc(p.name)}</span>`:''}${p&&p.end===ds?`<span class="pl">Cierra ${esc(p.name)}</span>`:''}${dayPlanned(ds)?`<button class="pmk" data-day="${ds}">Planeación</button>`:''}${ex.slice(0,2).map(xchip).join('')}${xs.slice(0,Math.max(0,3-Math.min(2,ex.length))).map(chip).join('')}${all>3?`<span class="more">+${all-3} más</span>`:''}</div>`}
   $('#calTitle').textContent=cap1(MES[m-1])+' '+y;$('#grid').innerHTML=h;
   if(document.activeElement!==$('#mNote'))$('#mNote').value=(S.months[U.cal]||{}).n||'';
   const ml=L.filter(i=>i.d.startsWith(U.cal)).sort(byDate);
@@ -995,8 +1011,8 @@ function rSemanal(){const w=U.week,days=[0,1,2,3,4].map(i=>iso(add(pd(w),i))),a=
   const W=S.weeks[w]||{notas:'',tareas:[]};
   $('#wGrid').innerHTML=days.map((ds,i)=>{const cl=classesOf(ds),its=S.items.filter(x=>x.d===ds).sort(byDate),ex=extrasOn(ds);
     return `<section class="wday${ds===TODAY?' tdy':''}" style="--p:${PV(i)}"><header><button data-day="${ds}" aria-label="Abrir planeación del ${fmtL(ds)}"><b>${DAYS[i]}</b><span>${pd(ds).getDate()} ${MC[pd(ds).getMonth()]}</span></button></header>
-    ${cl.concat(spacesOf(ds)).sort((a,b)=>a.b.ini<b.b.ini?-1:1).map(x=>{if(x.c.sp)return `<div class="wsp" style="--c:${spC(x.c.sp)}"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.sp)}</b>${x.c.r?`<span class="note">${esc(x.c.r)}</span>`:''}</div>`;const pl=S.plans[ds+'|'+x.b.id],hp=hasPlan(pl),st=pl&&pl.st;return `<button class="wcl ${st==='dictada'?'dictada':hp?'':'sinp'}" data-cls="${ds}|${esc(x.b.id)}" style="--c:${esc(subj(x.c.s).c)}"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.s)} ${esc(x.c.g||'')}</b><span>${st==='no'?'No se dictó':hp?esc(pl.tema||'Planeada'):'Sin planear'}</span></button>`}).join('')}
-    ${ex.map(xchip).join('')}${its.map(chip).join('')}${brk(ds)?`<span class="none brkn">${esc(brk(ds).name)} · sin clases</span>`:!cl.length&&!spacesOf(ds).length&&!its.length&&!ex.length?'<span class="none">Día libre</span>':''}</section>`}).join('')+
+    ${cl.concat(spacesOf(ds),evItems(ds)).sort((a,b)=>a.b.ini<b.b.ini?-1:1).map(x=>{if(x.c.ev)return `<div class="wsp" style="--c:#c0392b"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.ev.name)}</b><span class="note">Sin clases en esa franja</span></div>`;if(x.c.sp)return `<div class="wsp" style="--c:${spC(x.c.sp)}"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.sp)}</b>${x.c.r?`<span class="note">${esc(x.c.r)}</span>`:''}</div>`;const pl=S.plans[ds+'|'+x.b.id],hp=hasPlan(pl),st=pl&&pl.st;return `<button class="wcl ${st==='dictada'?'dictada':hp?'':'sinp'}" data-cls="${ds}|${esc(x.b.id)}" style="--c:${esc(subj(x.c.s).c)}"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.s)} ${esc(x.c.g||'')}</b><span>${st==='no'?'No se dictó':hp?esc(pl.tema||'Planeada'):'Sin planear'}</span></button>`}).join('')}
+    ${ex.map(xchip).join('')}${its.map(chip).join('')}${offDay(ds)?`<span class="none brkn">${esc(offDay(ds).name)} · sin clases</span>`:!cl.length&&!spacesOf(ds).length&&!acadOn(ds).length&&!its.length&&!ex.length?'<span class="none">Día libre</span>':''}</section>`}).join('')+
   `<aside class="wside"><section class="box"><h3>Notas</h3><textarea id="wNotes" placeholder="Notas de la semana…" aria-label="Notas de la semana">${esc(W.notas||'')}</textarea></section>
    <section class="box"><h3>Tareas</h3><ul class="tl">${(W.tareas||[]).map((t,i)=>`<li class="${t.d?'dn2':''}"><label><input type="checkbox" data-wt="${i}"${t.d?' checked':''}><span>${esc(t.t)}</span></label><button data-wtd="${i}" aria-label="Quitar tarea">×</button></li>`).join('')||'<li class="note">Sin tareas para esta semana.</li>'}</ul>
    <div class="addrow"><input id="wtIn" placeholder="Nueva tarea" maxlength="120" aria-label="Nueva tarea"><button class="btn" id="wtAdd">Añadir</button></div></section></aside>`}
@@ -1018,10 +1034,11 @@ function planCard(ds,x){const key=ds+'|'+x.b.id,p=S.plans[key]||{},s=subj(x.c.s)
 function daySum(){const cl=classesOf(U.day),pl=cl.filter(x=>hasPlan(S.plans[U.day+'|'+x.b.id])).length;$('#dSum').textContent=cl.length?`${cl.length} ${cl.length===1?'clase':'clases'} · ${pl} ${pl===1?'planeada':'planeadas'}`:''}
 function rDia(){const ds=U.day,d=pd(ds),p=perOf(ds);
   $('#dTitle').textContent=cap1(DOWF[d.getDay()])+' '+d.getDate()+' de '+MES[d.getMonth()];
-  $('#dSub').textContent=[ds===TODAY?'Hoy':'',p?`${p.name} · ${weekLbl(p,ds)}`:brk(ds)?`${brk(ds).name} (sin clases)`:'Fuera de los periodos configurados',String(d.getFullYear())].filter(Boolean).join(' · ');
+  $('#dSub').textContent=[ds===TODAY?'Hoy':'',p?`${p.name} · ${weekLbl(p,ds)}${offDay(ds)&&dIdx(ds)<5&&!brk(ds)?' · '+offDay(ds).name:''}`:offDay(ds)?`${offDay(ds).name} (sin clases)`:'Fuera de los periodos configurados',String(d.getFullYear())].filter(Boolean).join(' · ');
   $('#dPick').value=ds;const cl=classesOf(ds);daySum();
-  const all=cl.concat(spacesOf(ds)).sort((a,b)=>a.b.ini<b.b.ini?-1:1);
-  $('#dClasses').innerHTML=all.length?all.map(x=>x.c.sp?`<div class="dsp-card" style="--c:${spC(x.c.sp)}"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.sp)}</b>${x.c.r?`<small>${esc(x.c.r)}</small>`:''}</div>`:planCard(ds,x)).join(''):`<div class="emptyday"><p style="margin:0">${brk(ds)&&dIdx(ds)<5?`${esc(brk(ds).name)}: los estudiantes no tienen clase. Estos días no cuentan en las semanas del periodo.`:dIdx(ds)>4?'Es fin de semana: no hay clases en el horario.':'No hay clases asignadas en tu horario para este día.'}</p><a class="btn" href="#horario">Ir al horario</a></div>`;
+  const all=cl.concat(spacesOf(ds),evItems(ds)).sort((a,b)=>a.b.ini<b.b.ini?-1:1);
+  $('#dClasses').innerHTML=all.length?all.map(x=>x.c.ev?`<div class="dsp-card" style="--c:#c0392b"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.ev.name)}</b><small>Las clases de esta franja no se planean.</small></div>`:x.c.sp?`<div class="dsp-card" style="--c:${spC(x.c.sp)}"><time>${esc(x.b.ini)} – ${esc(x.b.fin)}</time><b>${esc(x.c.sp)}</b>${x.c.r?`<small>${esc(x.c.r)}</small>`:''}</div>`:planCard(ds,x)).join(''):`<div class="emptyday"><p style="margin:0">${offDay(ds)&&dIdx(ds)<5?`${esc(offDay(ds).name)}: no hay clases este día y no se planea.`:dIdx(ds)>4?'Es fin de semana: no hay clases en el horario.':'No hay clases asignadas en tu horario para este día.'}</p><a class="btn" href="#horario">Ir al horario</a></div>`;
+  rInstBox($('#dInst'),ds);
   const D=S.days[ds]||{};if(document.activeElement!==$('#dNotes'))$('#dNotes').value=D.notes||'';
   $('#dFiles').innerHTML=(D.files||[]).map(f=>fileChip(f,'day|'+ds)).join('')||'<span class="note">Sin archivos todavía</span>';
   const its=S.items.filter(i=>i.d===ds).sort(byDate),ex=extrasOn(ds);
@@ -1038,7 +1055,7 @@ let perDelArm=false;
 function rPeriodos(){const P=S.periods.slice().sort((a,b)=>a.start<b.start?-1:1);if(!per(U.sel))U.sel=(perOf(TODAY)||P[0]||{}).id||'';
   $('#plist').innerHTML=P.map(p=>{const xs=S.items.filter(i=>i.d>=p.start&&i.d<=p.end),dn=xs.filter(i=>i.st==='done').length,pc=xs.length?Math.round(dn*100/xs.length):0;
     return `<button class="pc${p.id===U.sel?' on':''}${perOf(TODAY)===p?' isnow':''}" data-sel="${esc(p.id)}"><b>${esc(p.name)}</b><small>${fmt(p.start)} – ${fmt(p.end)} ${p.start.slice(0,4)}</small><span class="bar"><i style="width:${pc}%"></i></span><small>${dn} de ${xs.length} realizadas · ${pc}%</small></button>`}).join('')+'<button class="pc addp" id="addPer">+ Añadir periodo</button>';
-  rBreaks();const p=per(U.sel);if(!p){$('#pdet').innerHTML='<p class="empty">Crea un periodo para empezar a planear.</p>';return}
+  rBreaks();rInstBox($('#instBox'));const p=per(U.sel);if(!p){$('#pdet').innerHTML='<p class="empty">Crea un periodo para empezar a planear.</p>';return}
   const xs=S.items.filter(i=>i.d>=p.start&&i.d<=p.end&&(U.sub==='all'||i.s===U.sub)),c=k=>xs.filter(i=>i.st===k).length,late=xs.filter(isLate).length,pc=xs.length?Math.round(c('done')*100/xs.length):0;
   const subs=S.subjects.map(s=>{const a=xs.filter(i=>i.s===s.n),d=a.filter(i=>i.st==='done').length,g=a.filter(i=>i.st==='doing').length,n=a.length||1;
     return `<div class="srow" style="--c:${esc(s.c)}"><span class="sub">${esc(s.n)}</span><div class="meter"><i class="d" style="width:${d*100/n}%"></i><i class="p" style="width:${g*100/n}%"></i></div><span>${d}/${a.length}</span></div>`}).join('');
@@ -1055,6 +1072,27 @@ function rPeriodos(){const P=S.periods.slice().sort((a,b)=>a.start<b.start?-1:1)
   <div class="box" style="background:var(--p5)"><h3>Cierre del periodo</h3><p class="note">Un Excel con una hoja por grupo y asignatura: promedio de cada componente, nota definitiva, desempeño e inasistencias del periodo.</p><div class="addrow" style="flex-wrap:wrap"><button class="btn pri" data-xls="per" data-pid="${esc(p.id)}">Descargar Excel del periodo</button><button class="btn" data-xls="anio" data-pid="${esc(p.id)}">Descargar Excel del año</button></div></div>
   <div><button class="btn danger${perDelArm?' arm':''}" id="pDel">${perDelArm?'Confirmar: eliminar periodo (las actividades se conservan)':'Eliminar este periodo'}</button></div>`}
 
+function rInstBox(el,day){if(!el)return;const L=S.inst.filter(e=>!day||(day>=e.start&&day<=(e.end||e.start))).sort((a,b)=>a.start<b.start?-1:a.start>b.start?1:(a.ini||'')<(b.ini||'')?-1:1);
+  const y=+(day||TODAY).slice(0,4),F=Object.entries(festivos(y)).sort();
+  const row=e=>{const full=e.t!=='academica';return `<div class="arow irow" data-iid="${esc(e.id)}"><select class="inp" data-if="t" aria-label="Tipo" style="flex:1 1 200px">${Object.entries(ITYPES).map(([k,v])=>`<option value="${k}"${k===e.t?' selected':''}>${v}</option>`).join('')}</select>
+    <input class="inp" data-if="name" value="${esc(e.name)}" maxlength="60" aria-label="Nombre" style="flex:2 1 200px">
+    <label class="dnl" style="flex:1 1 140px">${full?'Desde':'Fecha'}<input class="inp" type="date" data-if="start" value="${esc(e.start)}"></label>
+    ${full?`<label class="dnl" style="flex:1 1 140px">Hasta<input class="inp" type="date" data-if="end" value="${esc(e.end||e.start)}"></label>`:`<label class="dnl" style="flex:1 1 100px">De<input class="inp" type="time" data-if="ini" value="${esc(e.ini)}"></label><label class="dnl" style="flex:1 1 100px">A<input class="inp" type="time" data-if="fin" value="${esc(e.fin)}"></label>`}
+    <button class="btn sm danger" data-idel="${esc(e.id)}">Quitar</button></div>`};
+  el.innerHTML=`<h3>${day?'Día institucional':'Festivos y días institucionales'}</h3>
+  <p class="note">${day?(fest(day)?`<b>Festivo: ${esc(fest(day))}.</b> `:'')+'Marca aquí si este día hay jornada pedagógica, comisión de evaluación o entrega de boletines (se bloquea el día completo), o una actividad académica con hora (se bloquean solo las clases de esa franja).':'Los festivos de Colombia se marcan solos y ese día no hay clases. Agrega jornadas pedagógicas, comisiones de evaluación o entregas de boletines (bloquean el día completo para la planeación) y actividades académicas con hora (bloquean solo las clases que se cruzan con esa franja).'}</p>
+  <div style="display:grid;gap:8px">${L.map(row).join('')||(day?'':'<p class="note">Aún no hay días institucionales.</p>')}</div>
+  <div class="addrow" style="flex-wrap:wrap">${Object.entries(ITYPES).filter(([k])=>k!=='otro').map(([k,v])=>`<button class="btn sm" data-inew="${k}">+ ${v}</button>`).join('')}</div>
+  ${day?'':`<details><summary style="cursor:pointer;font-weight:700">Festivos de ${y} (${F.length})</summary><p class="note">${F.map(([d,n])=>`${fmt(d)}: ${esc(n)}`).join(' · ')}</p></details>`}`;
+  const get=id=>S.inst.find(e=>e.id===id);
+  el.querySelectorAll('[data-if]').forEach(i=>i.onchange=()=>{const e=get(i.closest('[data-iid]').dataset.iid);if(!e)return;const f=i.dataset.if,v=i.value.trim();
+    if(f==='name'){if(v)e.name=v.slice(0,60)}else if(f==='t'){const was=e.name===ITYPES[e.t]||e.name==='Actividad académica';e.t=v;if(was)e.name=v==='academica'?'Actividad académica':ITYPES[v];if(v==='academica'){e.end=e.start;if(!e.ini){e.ini='07:00';e.fin='09:00'}}}
+    else if(f==='start'){if(ISO.test(v)){e.start=v;if(!e.end||e.end<v||e.t==='academica')e.end=v}}else if(f==='end'){if(ISO.test(v)&&v>=e.start)e.end=v}else if(/^\d\d:\d\d$/.test(v)){e[f]=v;if(e.ini&&e.fin&&e.fin<=e.ini){toast('La hora final debe ser después de la inicial');return}}
+    commit()});
+  el.querySelectorAll('[data-idel]').forEach(x=>x.onclick=()=>{const i=S.inst.findIndex(e=>e.id===x.dataset.idel),e=S.inst[i];S.inst.splice(i,1);commit();toast(`Se quitó «${e.name}»`,()=>{S.inst.splice(i,0,e)})});
+  el.querySelectorAll('[data-inew]').forEach(x=>x.onclick=()=>{const t=x.dataset.inew;let d=day;if(!d){d=TODAY;while(dIdx(d)>4)d=iso(add(pd(d),1))}
+    const fb=S.sched.blocks.find(b=>b.t!=='pausa'),e={id:uid(),t,name:t==='academica'?'Actividad académica':ITYPES[t],start:d,end:d,ini:t==='academica'?(fb?fb.ini:'07:00'):'',fin:t==='academica'?(fb?fb.fin:'08:00'):''};
+    S.inst.push(e);commit();toast(t==='academica'?'Ajusta el nombre, la fecha y la hora de la actividad':'Ajusta el nombre y las fechas')})}
 function rBreaks(){const B=S.breaks;
   $('#brkBox').innerHTML=`<h3>Semanas sin clases (vacaciones y recesos)</h3><p class="note">Semana Santa, receso de octubre, vacaciones de mitad de año… Estos días no tienen clases en la semana ni en la planeación diaria, no se numeran en las semanas del periodo y no cuentan en la asistencia. La agenda propone Semana Santa y el receso de octubre de cada año: revisa que coincidan con el calendario del colegio.</p>
   <div style="display:grid;gap:8px">${B.map(b=>`<div class="arow"><input class="inp" data-bkn="${esc(b.id)}" value="${esc(b.name)}" maxlength="40" aria-label="Nombre" style="flex:2 1 200px"><label class="dnl" style="flex:1 1 150px">Desde<input class="inp" type="date" data-bks="${esc(b.id)}" value="${esc(b.start)}"></label><label class="dnl" style="flex:1 1 150px">Hasta<input class="inp" type="date" data-bke="${esc(b.id)}" value="${esc(b.end)}"></label><button class="btn sm danger" data-bkd="${esc(b.id)}">Quitar</button></div>`).join('')||'<p class="note">No hay semanas sin clases registradas.</p>'}</div>
@@ -1373,7 +1411,7 @@ function rEndYear(){const {y,ps,end}=schoolYear(),open=!end||TODAY>end,last=ps[p
 let wipeT=null;
 function wipe(kind){const {y}=schoolYear(),old=JSON.parse(JSON.stringify(S)),ids=filesOf(S,kind!=='all');
   if(kind==='all')S=norm(JSON.parse(JSON.stringify(DEFAULT)));
-  else{['items','groups','tut','reun','compl','notes'].forEach(k=>S[k]=[]);['plans','days','months','weeks','att','evals'].forEach(k=>S[k]={});
+  else{['items','groups','tut','reun','compl','notes','inst'].forEach(k=>S[k]=[]);['plans','days','months','weeks','att','evals'].forEach(k=>S[k]={});
     if(kind==='year'){const cur=S.periods.filter(p=>p.start.slice(0,4)===y),later=S.periods.filter(p=>p.start.slice(0,4)>y),hasNext=later.some(p=>p.start.slice(0,4)===String(+y+1));
     S.periods=later.concat(hasNext?[]:cur.map(p=>({...p,id:uid(),start:plus1(p.start),end:plus1(p.end),goals:''}))).sort((a,b)=>a.start<b.start?-1:1);addDefBreaks(S)}
     S.items=[];delete S.sched.ex}
