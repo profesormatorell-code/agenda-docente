@@ -45,7 +45,7 @@ button{cursor:pointer}
 .btn.pri{background:var(--hi);color:#1b1a10;border-color:transparent;box-shadow:0 2px 0 #c9a21a}
 .btn.sm{min-height:40px;font-size:14px;padding:0 12px}
 .top .btn.ghost{background:#f4f1e6;color:#1d3b33;border:0;box-shadow:0 2px 0 rgba(0,0,0,.28)}.top a.btn.ghost{background:#cfe3ff;color:#16306b}.top #outBtn{background:#ffb3a3;color:#5a1a0c}.top .btn.ghost:hover,.top .btn.pri:hover{filter:brightness(1.06)}.top .btn:focus-visible{outline:3px solid #fff;outline-offset:2px}
-.save{font-size:14px;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.1);white-space:nowrap;color:var(--chalk)}
+.save{display:none;font-size:14px;font-weight:700;padding:6px 12px;border-radius:99px;background:#ffb3a3;color:#5a1a0c;white-space:nowrap}.save.show{display:inline-block}
 .now{display:grid;grid-template-columns:auto minmax(0,1.4fr) auto;gap:10px 22px;align-items:center;margin-top:22px;padding:4px 0 18px;position:relative;z-index:1;max-width:min(100%,1100px)}
 .now b{font:700 26px/1 Caveat,cursive;color:var(--chy)}
 .now small{opacity:.85;font-size:14px}
@@ -679,7 +679,7 @@ const CFG=window.AGENDA_CONFIG||{};
 const sb=(window.supabase&&CFG.url&&CFG.anonKey&&!/PEGA_AQUI/.test(CFG.url+CFG.anonKey))?window.supabase.createClient(CFG.url,CFG.anonKey):null;
 let UID=null,known=null,uploading=0,saving=false,again=false,dirty=false;
 const SAVE={up:'Subiendo archivo…',pend:'Cambios por guardar…',saving:'Guardando…',ok:'Guardado',local:'Sin conexión: guardado en este equipo',err:'No se pudo guardar; reintentando…',conf:'Cambiado en otro equipo'};
-const setSave=k=>{$('#save').textContent=SAVE[k]};
+const setSave=k=>{const e=$('#save');e.textContent=SAVE[k];e.classList.toggle('show',!['ok','pend','saving'].includes(k))};
 let tmr;
 const cacheKey=()=>'agd-'+UID;
 function commit(quiet){S.savedAt=Date.now();dirty=true;try{UID&&localStorage.setItem(cacheKey(),JSON.stringify(S))}catch(e){}
