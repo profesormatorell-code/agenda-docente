@@ -276,6 +276,7 @@ ul.rows{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}
 .ctab td.n{color:var(--mute);width:2.5em}.ctab td.act{white-space:nowrap;text-align:right}.ctab tr.hl td{background:var(--hi2,#fff3b0)}
 .cres{display:grid;gap:4px}.cres button{text-align:left;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 10px;font-size:14px}.cres small{color:var(--mute)}
 .cinfo{display:flex;flex-wrap:wrap;gap:6px}
+.arow{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.arow .inp{flex:1 1 140px;min-width:150px}.arow .wopt>span{flex:1}
 .awrap{display:grid;grid-template-columns:250px minmax(0,1fr);gap:22px;align-items:start}
 .glist{display:grid;gap:6px}
 .gb{text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--line);background:var(--card);display:flex;justify-content:space-between;gap:8px;min-height:44px;align-items:center;font-weight:700}
@@ -1018,7 +1019,37 @@ function rAsistencia(){$('#aSide').innerHTML=groupSide();const g=grp(U.g);
   <tbody>${g.students.map((s,i)=>{const t=tot(s);return `<tr><th class="stu">${i+1}. ${esc(s.n)}</th>${days.map(ds=>{const v=(S.att[g.id+'|'+ds]||{})[s.id]||'';return `<td><button class="ac ${v}" data-at="${ds}|${esc(s.id)}" aria-label="${esc(s.n)}, ${fmtL(ds)}: ${MKN[v]}">${v}</button></td>`}).join('')}<td class="tot" data-tt="F|${esc(s.id)}">${t.F||''}</td><td class="tot" data-tt="R|${esc(s.id)}">${t.R||''}</td><td class="tot" data-tt="E|${esc(s.id)}">${t.E||''}</td></tr>`}).join('')}</tbody></table></div>
   <div class="legend"><span><span class="ac F">F</span> Falta</span><span><span class="ac R">R</span> Retardo</span><span><span class="ac E">E</span> Excusa</span><span>Columnas en azul: días en que tienes clase con este grupo.</span></div>
 `:'<p class="empty">Este grupo no tiene estudiantes. Agrégalos en <a href="#clases">Clases</a>.</p>'}`;
-}
+  const pc=perOf(TODAY)||S.periods[0];if(!U.arA){const cur=perOf(TODAY);U.arA=cur?cur.start:TODAY.slice(0,8)+'01';U.arB=cur&&cur.end<TODAY?cur.end:TODAY}
+  $('#aMain').insertAdjacentHTML('beforeend',`<section class="box" style="margin-top:18px;background:var(--p3)"><h3>Reporte de asistencia en Excel</h3>
+  <p class="note">Una hoja por grupo con la marca de cada día (F, R, E) y los totales por estudiante, más una hoja de resumen.</p>
+  <div class="arow"><label class="wopt" style="flex:1 1 220px"><input type="radio" name="arM" value="p"${U.arM!=='r'?' checked':''}><span><b>Un periodo</b><select class="inp" id="arP" style="margin-top:6px">${S.periods.map(x=>`<option value="${esc(x.id)}"${(U.arP||(pc||{}).id)===x.id?' selected':''}>${esc(x.name)} ${x.start.slice(0,4)} (${fmt(x.start)} – ${fmt(x.end)})</option>`).join('')}</select></span></label>
+  <label class="wopt" style="flex:1 1 220px"><input type="radio" name="arM" value="r"${U.arM==='r'?' checked':''}><span><b>Entre dos fechas</b><span class="arow" style="margin-top:6px"><label class="dnl" style="flex:1 1 150px">Desde<input class="inp" type="date" id="arA" value="${esc(U.arA)}"></label><label class="dnl" style="flex:1 1 150px">Hasta<input class="inp" type="date" id="arB" value="${esc(U.arB)}"></label></span></span></label></div>
+  <div class="arow"><select class="inp" id="arG" aria-label="Grupos" style="flex:1 1 220px"><option value="one">Solo ${esc(g.name)}</option><option value="all"${U.arG==='all'?' selected':''}>Todos mis grupos</option></select>
+  <button class="btn pri" id="arGo">Descargar Excel de asistencia</button></div></section>`);
+  $('#arP').onchange=e=>{U.arP=e.target.value;document.querySelector('input[name=arM][value=p]').checked=true;U.arM='p'};
+  ['arA','arB'].forEach(i=>$('#'+i).onchange=e=>{U[i]=e.target.value;document.querySelector('input[name=arM][value=r]').checked=true;U.arM='r'});
+  document.querySelectorAll('input[name=arM]').forEach(r=>r.onchange=()=>{U.arM=r.value});
+  $('#arG').onchange=e=>{U.arG=e.target.value};
+  $('#arGo').onclick=()=>{let a,b,lbl;if((document.querySelector('input[name=arM]:checked')||{}).value==='r'){a=$('#arA').value;b=$('#arB').value;if(!a||!b){toast('Elige las dos fechas');return}if(a>b)[a,b]=[b,a];lbl=`del ${fmt(a)} de ${a.slice(0,4)} al ${fmt(b)} de ${b.slice(0,4)}`}
+    else{const q=per($('#arP').value);if(!q){toast('Elige un periodo');return}a=q.start;b=q.end;lbl=`${q.name} ${q.start.slice(0,4)} (del ${fmt(a)} al ${fmt(b)} de ${b.slice(0,4)})`}
+    const gs=$('#arG').value==='all'?sortG(S.groups).filter(x=>x.students.length):[g];if(!gs.length){toast('Tus grupos aún no tienen estudiantes');return}
+    toast('Preparando el Excel…');excelAtt(gs,a,b,lbl).catch(()=>toast('No se pudo preparar el Excel'))}}
+async function excelAtt(gs,a,b,lbl){const X=await loadXL(),wb=X.utils.book_new(),used=new Set(),sum=[];
+  const wd=[];for(let d=pd(a);iso(d)<=b;d.setDate(d.getDate()+1)){const ds=iso(d);if(dIdx(ds)<5)wd.push(ds)}
+  const h0=t=>[[t+(S.me.inst?' · '+S.me.inst:'')],[lbl+(who()[0]?` · Docente: ${who()[0]}`:'')]];
+  const per100=(n,f)=>n?Math.max(0,Math.round((n-f)/n*1000)/10):'';
+  gs.forEach(g=>{const hasSched=Object.values(S.sched.cells).some(c=>c&&c.s&&!c.sp&&nkey(c.g)===nkey(g.name));
+    const days=wd.filter(ds=>(hasSched?classesOf(ds).some(x=>nkey(x.c.g)===nkey(g.name)):false)||Object.keys(S.att[g.id+'|'+ds]||{}).length);
+    const dlist=hasSched||days.length?days:wd;
+    const head=h0(`Asistencia · ${g.name}`).concat([[`Días con clase en el lapso: ${dlist.length}. F = falta sin excusa, E = falta con excusa, R = retardo; vacío = asistió.`],[],
+      ['No.','Estudiante',...dlist.map(ds=>{const x=pd(ds);return `${'LMXJV'[dIdx(ds)]} ${x.getDate()}/${x.getMonth()+1}`}),'Faltas sin excusa','Faltas con excusa','Total inasistencias','Retardos','% asistencia']]);
+    const rows=g.students.map((st,i)=>{const t={F:0,E:0,R:0};const cells=dlist.map(ds=>{const v=(S.att[g.id+'|'+ds]||{})[st.id]||'';if(v)t[v]++;return v});
+      Object.entries(S.att).forEach(([k,o])=>{const j=k.indexOf('|');if(k.slice(0,j)!==g.id)return;const ds=k.slice(j+1);if(ds<a||ds>b||dlist.includes(ds))return;const v=o[st.id];if(v)t[v]++});
+      const r=[i+1,st.n,...cells,t.F,t.E,t.F+t.E,t.R,per100(dlist.length,t.F+t.E)];sum.push([g.name,st.n,t.F,t.E,t.F+t.E,t.R,per100(dlist.length,t.F+t.E)]);return r});
+    addSheet(X,wb,used,g.name,head,rows,[5,34,...dlist.map(()=>7),10,10,11,9,11])});
+  {const ws=X.utils.aoa_to_sheet(h0('Resumen de asistencia').concat([[],['Grupo','Estudiante','Faltas sin excusa','Faltas con excusa','Total inasistencias','Retardos','% asistencia']],sum));
+    ws['!cols']=[12,34,10,10,11,9,11].map(w=>({wch:w}));X.utils.book_append_sheet(wb,ws,shName('Resumen',used));wb.SheetNames.unshift(wb.SheetNames.pop())}
+  await saveX(X,wb,`Asistencia ${gs.length===1?gs[0].name+' ':''}${a} a ${b}.xlsx`.replace(/[\\/:*?"<>|]/g,'-'))}
 /* trasladar o retirar un estudiante */
 const nkey=t=>String(t||'').trim().toLowerCase();
 function mvPlan(gA,sid,gB,apply){const r={coin:0,prop:0,pend:[],att:0,notas:0};const hit=new Set();
