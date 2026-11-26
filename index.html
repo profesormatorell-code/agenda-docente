@@ -845,7 +845,12 @@ async function shareSync(full){
   for(const r in td)for(let i=0;i<td[r].length;i+=200)await chk(sb.from('aula_asistencia').delete().eq('estudiante_ref',r).in('fecha',td[r].slice(i,i+200)));
   // perfil
   const nom=[S.me.nombre,S.me.apellidos].filter(Boolean).join(' ').trim(),psig=JSON.stringify([nom,S.me.inst||'']);let lp=null;try{lp=localStorage.getItem('aula-perf-'+UID)}catch(e){}
-  if(nom&&psig!==lp){const row={nombre:nom.slice(0,120)};if(S.me.inst)row.colegio=String(S.me.inst).slice(0,120);await chk(sb.from('aula_perfil').update(row).eq('docente',UID));try{localStorage.setItem('aula-perf-'+UID,psig)}catch(e){}}
+  if(nom&&(psig!==lp||full)){const row={nombre:nom.slice(0,120)};if(S.me.inst)row.colegio=String(S.me.inst).slice(0,120);
+    const {data:pf,error:pe}=await sb.from('aula_perfil').select('docente').eq('docente',UID).maybeSingle();if(pe)throw pe;
+    if(pf){if(psig!==lp)await chk(sb.from('aula_perfil').update({...row,actualizado:new Date().toISOString()}).eq('docente',UID))}
+    else{const base=('profe-'+String(S.me.nombre||nom).trim().split(/\s+/)[0]).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9-]/g,'').slice(0,30)||'profe';
+      let r=await sb.from('aula_perfil').insert({...row,slug:base.length>=3?base:'profe-aula'});if(r.error&&r.error.code==='23505')r=await sb.from('aula_perfil').insert({...row,slug:(base+'-'+UID.slice(0,4)).slice(0,40)});if(r.error)throw r.error}
+    try{localStorage.setItem('aula-perf-'+UID,psig)}catch(e){}}
   RC={...R,A:mA.F,N:mN.F,T:{...L.T}};try{localStorage.setItem(baseKey(),JSON.stringify({A:mA.F,N:mN.F}))}catch(e){}
   if(ch){commit(true);const ae=document.activeElement;if(!document.querySelector('dialog[open]')&&!(ae&&ae.matches('textarea,input:not([type]),input[type=text],input[type=search]')))render()}}
 const aulaFull=()=>{if(UID&&sb&&Date.now()-lastFull>20000)aulaSync('full')};
