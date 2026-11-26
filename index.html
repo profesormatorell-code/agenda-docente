@@ -702,7 +702,10 @@ function norm(o){o=o&&typeof o==='object'?o:{};const A=v=>Array.isArray(v)?v:[],
   const x={savedAt:+o.savedAt||0};
   x.me=O(o.me);
   x.subjects=A(o.subjects).filter(s=>s&&s.n).map((s,i)=>({n:str(s.n),c:/^#[0-9a-f]{6}$/i.test(s.c)?s.c:PAL[i%PAL.length]}));
-  x.periods=A(o.periods).filter(p=>p&&p.id&&ISO.test(p.start)&&ISO.test(p.end)).map(p=>({id:str(p.id),name:str(p.name||'Periodo'),start:p.start,end:p.end,goals:str(p.goals),w:Math.max(0,+p.w||0)}));
+  x.periods=A(o.periods).filter(p=>p&&p.id&&ISO.test(p.start)&&ISO.test(p.end)).map(p=>({id:str(p.id),name:str(p.name||'Periodo'),start:p.start,end:p.end,goals:str(p.goals),w:Math.max(0,+p.w||0),...(p.sup?{sup:1}:{})}));
+  if(!o.supDone){[...new Set(x.periods.filter(p=>!p.sup).map(p=>p.start.slice(0,4)))].forEach(y=>{if(x.periods.some(p=>p.sup&&p.start.slice(0,4)===y))return;const L=x.periods.filter(p=>!p.sup&&p.start.slice(0,4)===y).sort((a,b)=>a.end<b.end?1:-1)[0];if(!L)return;
+    const d=pd(L.end),m=add(d,(8-d.getDay())%7||7);x.periods.push({id:'sup'+y,name:'Actividades de superación',start:iso(m),end:iso(add(m,4)),goals:'',w:0,sup:1})})}
+  x.supDone=1;
   x.items=A(o.items).filter(i=>i&&i.id&&i.t&&ISO.test(i.d)).map(i=>({...i,id:str(i.id),t:str(i.t),st:STL[i.st]?i.st:'todo',p:+i.p||2}));
   const sc=O(o.sched);x.sched={blocks:A(sc.blocks).filter(b=>b&&b.id).map(b=>({id:str(b.id),ini:str(b.ini),fin:str(b.fin),t:b.t==='pausa'?'pausa':'clase',lbl:str(b.lbl)})),cells:O(sc.cells),file:sc.file&&sc.file.id?sc.file:null};if(sc.ex)x.sched.ex=1;
   for(const k of ['plans','days','months','weeks','att','evals'])x[k]=O(o[k]);
@@ -772,8 +775,8 @@ async function aulaSync(force){if(!sb||!UID)return;if(aulaBusy){aulaAgain=true;i
 /* notas, actividades, asistencia y perfil compartidos con el Aula virtual */
 let RC=null,aulaForce=null,lastFull=0;
 const CATMAP={con:'conocimiento',eva:'examen',pro:'procedimental',het:'hetero',aut:'auto',coe:'co'},CATINV={};for(const k in CATMAP)CATINV[CATMAP[k]]=k;
-const yPers=y=>S.periods.filter(x=>x.start.slice(0,4)===String(y)).sort((a,b)=>a.start<b.start?-1:1);
-function pnumOf(pid){const p=per(pid);if(!p)return null;const ps=yPers(p.start.slice(0,4)),i=ps.findIndex(x=>x.id===pid);return i>=0&&i<3?{n:i+1,y:+p.start.slice(0,4)}:null}
+const yPers=y=>S.periods.filter(x=>!x.sup&&x.start.slice(0,4)===String(y)).sort((a,b)=>a.start<b.start?-1:1);
+function pnumOf(pid){const p=per(pid);if(!p||p.sup)return null;const ps=yPers(p.start.slice(0,4)),i=ps.findIndex(x=>x.id===pid);return i>=0&&i<3?{n:i+1,y:+p.start.slice(0,4)}:null}
 const aKey=o=>o?JSON.stringify([o.ref,o.p,o.t,o.c,o.o||'']):undefined,nKey=v=>v==null?undefined:String(Math.round(+v*10)/10);
 const baseKey=()=>'aula-base2-'+UID;
 const chk=async q=>{const {error}=await q;if(error)throw error};
@@ -1059,7 +1062,7 @@ function rTareas(){const L=filtered();
 let perDelArm=false;
 function rPeriodos(){const P=S.periods.slice().sort((a,b)=>a.start<b.start?-1:1);if(!per(U.sel))U.sel=(perOf(TODAY)||P[0]||{}).id||'';
   $('#plist').innerHTML=P.map(p=>{const xs=S.items.filter(i=>i.d>=p.start&&i.d<=p.end),dn=xs.filter(i=>i.st==='done').length,pc=xs.length?Math.round(dn*100/xs.length):0;
-    return `<button class="pc${p.id===U.sel?' on':''}${perOf(TODAY)===p?' isnow':''}" data-sel="${esc(p.id)}"><b>${esc(p.name)}</b><small>${fmt(p.start)} – ${fmt(p.end)} ${p.start.slice(0,4)}</small><span class="bar"><i style="width:${pc}%"></i></span><small>${dn} de ${xs.length} realizadas · ${pc}%</small></button>`}).join('')+'<button class="pc addp" id="addPer">+ Añadir periodo</button>';
+    return `<button class="pc${p.id===U.sel?' on':''}${perOf(TODAY)===p?' isnow':''}" data-sel="${esc(p.id)}"><b>${esc(p.name)}</b><small>${fmt(p.start)} – ${fmt(p.end)} ${p.start.slice(0,4)}${p.sup?' · no se computa':''}</small><span class="bar"><i style="width:${pc}%"></i></span><small>${dn} de ${xs.length} realizadas · ${pc}%</small></button>`}).join('')+'<button class="pc addp" id="addPer">+ Añadir periodo</button><button class="pc addp" id="addSup">+ Semana de actividades de superación</button>';
   rBreaks();rInstBox($('#instBox'));const p=per(U.sel);if(!p){$('#pdet').innerHTML='<p class="empty">Crea un periodo para empezar a planear.</p>';return}
   const xs=S.items.filter(i=>i.d>=p.start&&i.d<=p.end&&(U.sub==='all'||i.s===U.sub)),c=k=>xs.filter(i=>i.st===k).length,late=xs.filter(isLate).length,pc=xs.length?Math.round(c('done')*100/xs.length):0;
   const subs=S.subjects.map(s=>{const a=xs.filter(i=>i.s===s.n),d=a.filter(i=>i.st==='done').length,g=a.filter(i=>i.st==='doing').length,n=a.length||1;
@@ -1069,12 +1072,12 @@ function rPeriodos(){const P=S.periods.slice().sort((a,b)=>a.start<b.start?-1:1)
     if(!Z.n){wk+=`<div class="wk bkw${cur?' cur':''}"><div><b>${esc(Z.br.name)}</b><small>${fmt(a)} – ${fmt(b)} · no cuenta</small></div><div class="wchips">${its.map(chip).join('')||'<span class="none">Sin clases</span>'}</div></div>`;continue}
     let nc=0,np=0;for(let x=pd(a);iso(x)<=b;x=add(x,1)){const ds=iso(x);classesOf(ds).forEach(c=>{nc++;if(hasPlan(S.plans[ds+'|'+c.b.id]))np++})}
     wk+=`<div class="wk${cur?' cur':''}"><div><b>Semana ${Z.n}${cur?' · esta':''}</b><small>${fmt(a)} – ${fmt(b)}</small>${nc?`<small class="cl">${np}/${nc} clases planeadas</small>`:''}</div><div class="wchips">${its.map(chip).join('')||'<span class="none">Sin actividades</span>'}</div></div>`}
-  $('#pdet').innerHTML=`<div class="pform"><label>Nombre<input id="pN" value="${esc(p.name)}" maxlength="40"></label><label>Inicio<input type="date" id="pS" value="${esc(p.start)}"></label><label>Fin<input type="date" id="pE" value="${esc(p.end)}"></label><label>Peso en la nota del año<span style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="number" id="pW" min="0" max="100" value="${(()=>{const Y=S.periods.filter(x=>x.start.slice(0,4)===p.start.slice(0,4)).sort((a,b)=>a.start<b.start?-1:1),i=Y.indexOf(p);return p.w>0?p.w:(Y.length===3?[30,30,40][i]:Math.round(100/Y.length))})()}" style="width:90px"> %</span></label></div>
+  $('#pdet').innerHTML=`<div class="pform"><label>Nombre<input id="pN" value="${esc(p.name)}" maxlength="40"></label><label>Inicio<input type="date" id="pS" value="${esc(p.start)}"></label><label>Fin<input type="date" id="pE" value="${esc(p.end)}"></label>${p.sup?'<p class="note" style="align-self:end">Semana de actividades de superación: <b>no se computa</b> en las notas. Sirve para organizar actividades y planear.</p>':''}<label${p.sup?' hidden':''}>Peso en la nota del año<span style="display:flex;gap:6px;align-items:center;font-weight:400"><input type="number" id="pW" min="0" max="100" value="${(()=>{const Y=S.periods.filter(x=>!x.sup&&x.start.slice(0,4)===p.start.slice(0,4)).sort((a,b)=>a.start<b.start?-1:1),i=Y.indexOf(p);return p.w>0?p.w:(Y.length===3?[30,30,40][i]:Math.round(100/Y.length))})()}" style="width:90px"> %</span></label></div>
   <div class="kpis"><div class="kpi"><b>${xs.length}</b><span>actividades</span></div><div class="kpi o"><b>${pc}%</b><span>realizado</span></div><div class="kpi"><b>${c('doing')}</b><span>en proceso</span></div><div class="kpi l"><b>${late}</b><span>vencidas</span></div></div>
   <div><h3>Avance por asignatura</h3>${subs}</div>
   <div><h3>Trazado semana a semana</h3><div class="weeks">${wk}</div></div>
   <div><h3>Metas y notas del periodo</h3><textarea id="pG" placeholder="Unidades a desarrollar, metas, acuerdos de área…">${esc(p.goals)}</textarea></div>
-  <div class="box" style="background:var(--p5)"><h3>Cierre del periodo</h3><p class="note">Un Excel con una hoja por grupo y asignatura: promedio de cada componente, nota definitiva, desempeño e inasistencias del periodo.</p><div class="addrow" style="flex-wrap:wrap"><button class="btn pri" data-xls="per" data-pid="${esc(p.id)}">Descargar Excel del periodo</button><button class="btn" data-xls="anio" data-pid="${esc(p.id)}">Descargar Excel del año</button></div></div>
+  <div class="box" style="background:var(--p5)"${p.sup?' hidden':''}><h3>Cierre del periodo</h3><p class="note">Un Excel con una hoja por grupo y asignatura: promedio de cada componente, nota definitiva, desempeño e inasistencias del periodo.</p><div class="addrow" style="flex-wrap:wrap"><button class="btn pri" data-xls="per" data-pid="${esc(p.id)}">Descargar Excel del periodo</button><button class="btn" data-xls="anio" data-pid="${esc(p.id)}">Descargar Excel del año</button></div></div>
   <div><button class="btn danger${perDelArm?' arm':''}" id="pDel">${perDelArm?'Confirmar: eliminar periodo (las actividades se conservan)':'Eliminar este periodo'}</button></div>`}
 
 function rInstBox(el,day){if(!el)return;const L=S.inst.filter(e=>!day||(day>=e.start&&day<=(e.end||e.start))).sort((a,b)=>a.start<b.start?-1:a.start>b.start?1:(a.ini||'')<(b.ini||'')?-1:1);
@@ -1320,15 +1323,15 @@ function finalOf(sh,sid){if(!sh)return null;let sw=0,sm=0;S.cats.forEach(c=>{con
 const f1=v=>{if(v==null)return'';v=Math.round(v*10)/10;return Number.isInteger(v)?String(v):v.toFixed(1).replace('.',',')};
 const avgOf=(L,f)=>{const v=L.map(f).filter(x=>x!=null);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null};
 /* periodos del año y su peso en la nota final */
-function yearPeriods(){const y=(per(U.ep)||perOf(TODAY)||S.periods[0]||{start:TODAY}).start.slice(0,4),ps=S.periods.filter(p=>p.start.slice(0,4)===y).sort((a,b)=>a.start<b.start?-1:1);
+function yearPeriods(){const y=(per(U.ep)||perOf(TODAY)||S.periods[0]||{start:TODAY}).start.slice(0,4),ps=S.periods.filter(p=>!p.sup&&p.start.slice(0,4)===y).sort((a,b)=>a.start<b.start?-1:1);
   const def=ps.length===3?[30,30,40]:ps.map(()=>Math.round(100/(ps.length||1)));return {y,ps,w:ps.map((p,i)=>p.w>0?p.w:def[i])}}
 function evalBar(){const subs=S.subjects.filter(s=>s.n!=='Institucional');
   return `<div class="tbar"><div class="seg" role="group" aria-label="Vista"><button class="${U.ev!=='anio'?'on':''}" data-ev="per">Plantilla del periodo</button><button class="${U.ev==='anio'?'on':''}" data-ev="anio">Nota final del año</button></div>
-  ${U.ev==='anio'?'':`<select id="eP" aria-label="Periodo">${S.periods.map(p=>`<option value="${esc(p.id)}"${p.id===U.ep?' selected':''}>${esc(p.name)} ${p.start.slice(0,4)}</option>`).join('')}</select>`}
+  ${U.ev==='anio'?'':`<select id="eP" aria-label="Periodo">${S.periods.filter(p=>!p.sup).map(p=>`<option value="${esc(p.id)}"${p.id===U.ep?' selected':''}>${esc(p.name)} ${p.start.slice(0,4)}</option>`).join('')}</select>`}
   <select id="eG" aria-label="Grupo">${S.groups.map(x=>`<option value="${esc(x.id)}"${x.id===U.g?' selected':''}>${esc(x.name)}</option>`).join('')}</select>
   <select id="eS" aria-label="Asignatura">${subs.map(s=>`<option${s.n===U.es?' selected':''}>${esc(s.n)}</option>`).join('')}</select></div>`}
 const dspTag=v=>{const d=dsp(v);return d?`<span class="dsp ${d[0]}">${d[1]}</span>`:''};
-function rEvaluaciones(){if(!grp(U.g))U.g=(S.groups[0]||{}).id||'';if(!per(U.ep))U.ep=(perOf(TODAY)||S.periods[0]||{}).id||'';
+function rEvaluaciones(){if(!grp(U.g))U.g=(S.groups[0]||{}).id||'';if(!per(U.ep)||per(U.ep).sup){const n=perOf(TODAY);U.ep=(n&&!n.sup?n:S.periods.filter(p=>!p.sup&&p.start<=TODAY).sort((a,b)=>a.start<b.start?1:-1)[0]||S.periods.find(p=>!p.sup)||{}).id||''}
   const g=grp(U.g),subs=S.subjects.filter(s=>s.n!=='Institucional');
   if(!subs.some(s=>s.n===U.es)){const fs=g&&Object.values(S.sched.cells).find(c=>c&&c.g===g.name&&c.s!=='Institucional');U.es=fs?fs.s:(subs[0]||{}).n||''}
   if(!g){$('#eMain').innerHTML='<p class="empty">Primero crea tus grupos y sus estudiantes en <a href="#clases">Clases</a>.</p>';return}
@@ -1583,7 +1586,8 @@ document.addEventListener('click',e=>{const t=e.target,hit=s=>t.closest(s);let x
   const it=hit('[data-id]');if(it){openEdit(it.dataset.id);return}
   const cell=hit('.cell');if(cell){openEdit(null,{d:cell.dataset.d});return}
   switch(t.id){
-    case 'addPer':{const P=S.periods.slice().sort((a,b)=>a.start<b.start?-1:1),lp=P[P.length-1],s=lp?iso(add(pd(lp.end),3)):TODAY;const np={id:uid(),name:'Periodo '+(S.periods.length+1),start:s,end:iso(add(pd(s),90)),goals:''};S.periods.push(np);U.sel=np.id;commit();break}
+    case 'addSup':{const P=S.periods.filter(p=>!p.sup).sort((a,b)=>a.end<b.end?1:-1),L=P[0],d=L?pd(L.end):pd(TODAY),m=add(d,(8-d.getDay())%7||7);const np={id:uid(),name:'Actividades de superación',start:iso(m),end:iso(add(m,4)),goals:'',w:0,sup:1};S.periods.push(np);U.sel=np.id;commit();toast('Semana de superación creada: ajusta las fechas si hace falta');break}
+    case 'addPer':{const P=S.periods.slice().sort((a,b)=>a.start<b.start?-1:1),lp=P[P.length-1],s=lp?iso(add(pd(lp.end),3)):TODAY;const np={id:uid(),name:'Periodo '+(S.periods.filter(x=>!x.sup).length+1),start:s,end:iso(add(pd(s),90)),goals:''};S.periods.push(np);U.sel=np.id;commit();break}
     case 'pDel':{if(!perDelArm){perDelArm=true;rPeriodos();break}perDelArm=false;const ix=S.periods.findIndex(p=>p.id===U.sel),p=S.periods[ix];S.periods.splice(ix,1);if(U.per===p.id)U.per='all';U.sel='';commit();toast(`${p.name} eliminado`,()=>S.periods.splice(ix,0,p));break}
     case 'aSp':{const v=$('#nSp').value.trim();if(v&&!S.spaces.some(z=>z.toLowerCase()===v.toLowerCase())){S.spaces.push(v);commit()}break}
     case 'aSub':{const n=$('#nSub').value.trim();if(n&&!S.subjects.some(s=>s.n===n)){S.subjects.push({n,c:PAL[S.subjects.length%PAL.length]});commit()}break}
