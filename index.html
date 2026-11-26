@@ -747,8 +747,11 @@ async function aulaSync(force){if(!sb||!UID)return;if(aulaBusy){aulaAgain=true;r
   const P=aulaPayload(),anio=+schoolYear().y,sig=JSON.stringify([anio,P]);let last=null;try{last=localStorage.getItem(aulaSigKey())}catch(e){}
   if(!force&&sig===last)return;aulaBusy=true;
   try{const {data,error}=await sb.rpc('aula_sincronizar',{p:P,p_anio:anio});if(error)throw error;try{localStorage.setItem(aulaSigKey(),sig)}catch(e){}
-    aulaMsg='';const n=(data.cursos_nuevos||0)+(data.estudiantes_nuevos||0)+(data.trasladados||0);if(n&&force!=='silent')toast(`Aula virtual al día: ${data.cursos_nuevos} curso(s) y ${data.estudiantes_nuevos} estudiante(s) nuevos`+(data.trasladados?`, ${data.trasladados} trasladado(s)`:''))}
-  catch(e){console.warn('aula',e);aulaMsg='No se pudo actualizar el Aula virtual. Se intentará de nuevo con el próximo cambio.';try{localStorage.removeItem(aulaSigKey())}catch(_){}}
+    aulaMsg='';const n=(data.cursos_nuevos||0)+(data.estudiantes_nuevos||0)+(data.trasladados||0);
+    if(force===true){const sin=S.groups.filter(g=>!g.ex&&!subsOfG(g).filter(x=>x!=='Institucional').length).map(g=>g.name);
+      toast(!P.length?'Ningún grupo tiene asignatura todavía: créale su clase en «Nueva clase» para que pase al Aula virtual.':(n?`Aula virtual al día: ${data.cursos_nuevos} curso(s) y ${data.estudiantes_nuevos} estudiante(s) nuevos`:`El Aula virtual ya estaba al día: ${P.length} curso(s)`)+(sin.length?`. Sin asignatura (no pasan): ${sin.join(', ')}`:''))}
+    else if(n&&force!=='silent')toast(`Aula virtual al día: ${data.cursos_nuevos} curso(s) y ${data.estudiantes_nuevos} estudiante(s) nuevos`+(data.trasladados?`, ${data.trasladados} trasladado(s)`:''))}
+  catch(e){console.warn('aula',e);aulaMsg='No se pudo actualizar el Aula virtual. Se intentará de nuevo con el próximo cambio.';if(force===true)toast('No se pudo actualizar el Aula virtual: '+(e.message||'error de conexión'));try{localStorage.removeItem(aulaSigKey())}catch(_){}}
   finally{aulaBusy=false;const n=$('#aulaSt');if(n)n.textContent=aulaMsg||'Los cursos y estudiantes se pasan solos al Aula virtual: un curso por cada asignatura del grupo.';if(aulaAgain){aulaAgain=false;aulaSoon()}}}
 async function publish(){if(!sb||!UID||!dirty)return;if(saving){again=true;return}saving=true;dirty=false;setSave('saving');
   const now=new Date().toISOString();
@@ -978,6 +981,7 @@ function rClases(){if(!grp(U.g))U.g=(sortG(S.groups)[0]||{}).id||'';const g=grp(
   <label class="dnl">Grupo<input class="inp" id="cNg" list="cNgL" placeholder="Ej. 9°A" maxlength="30"></label><datalist id="cNgL">${S.groups.map(x=>`<option value="${esc(x.name)}">`).join('')}</datalist>
   <button class="btn pri" id="cNb">Crear clase</button>
   ${free.length?`<p class="note">Asignaturas de Mis datos que aún no tienen grupo: <b>${free.map(x=>esc(x.n)).join(', ')}</b>.</p>`:''}</section>
+  <section class="box" style="background:var(--p4)"><h3>Aula virtual</h3><p class="note">Cada clase (grupo + asignatura) se pasa sola al Aula virtual con sus estudiantes. Si no la ves allá, toca el botón.</p><button class="btn" id="aulaNow">Pasar al Aula virtual ahora</button></section>
   <section class="box"><h3>Mis grupos</h3><input class="inp" id="cQ" type="search" placeholder="Buscar grupo o estudiante" aria-label="Buscar grupo o estudiante" value="${esc(U.cq||'')}"><div id="cGl">${cList()}</div></section>
   <section class="box" style="background:var(--p0)"><h3>Importar estudiantes</h3>
   <p class="note"><b>Lo más fácil:</b> descarga la plantilla, escribe a tus estudiantes con su grupo y súbela. Los grupos se crean solos. También sirve cualquier Excel o CSV con una columna de nombre y otra de grupo, o una hoja por grupo.</p>
@@ -986,6 +990,7 @@ function rClases(){if(!grp(U.g))U.g=(sortG(S.groups)[0]||{}).id||'';const g=grp(
   <textarea class="inp" id="gImpT" style="min-height:110px" placeholder="…o pega aquí desde Excel, por ejemplo:&#10;Acosta Ruiz Valentina&#9;10°A&#10;Benítez Mora Samuel&#9;10°B" aria-label="Pegar estudiantes con su grupo"></textarea>
   <button class="btn pri" id="gImp">Importar lo pegado</button></section>`;
   $('#cQ').oninput=e=>{U.cq=e.target.value;$('#cGl').innerHTML=cList()};
+  $('#aulaNow').onclick=()=>{toast('Actualizando el Aula virtual…');aulaSync(true)};
   $('#cNb').onclick=()=>newClass($('#cNs').value,$('#cNg').value);$('#cNg').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#cNb').click()}};
   if(!g){$('#cMain').innerHTML='<p class="empty"><b>Aún no tienes clases con grupo.</b> En «Nueva clase» (a la izquierda) elige la asignatura, escribe el grupo, por ejemplo 9°A, y toca «Crear clase». Después podrás agregar los estudiantes aquí. También puedes subir todas tus listas con «Importar estudiantes», o programar tus clases en el <a href="#horario">Horario</a>: cada grupo del horario aparece aquí solo.</p>';return}
   const info=classInfo(g);
