@@ -729,7 +729,7 @@ function norm(o){o=o&&typeof o==='object'?o:{};const A=v=>Array.isArray(v)?v:[],
     if(c.s==='Institucional'&&!c.sp){x.sched.cells[k]={sp:str(c.g||'Espacio institucional'),r:str(c.r)};const n=x.sched.cells[k].sp;if(!x.spaces.some(v=>v.toLowerCase()===n.toLowerCase()))x.spaces.push(n)}}
   const s=O(o.scale);
   if(!s.max){x.scale={min:20,max:100,b:60,a:80,s:90,dec:0};for(const k in x.evals){const mk=x.evals[k].marks;for(const j in mk)if(+mk[j]<=5)mk[j]=Math.round(mk[j]*20)}}
-  else x.scale={min:+s.min||0,max:+s.max||100,b:+s.b||60,a:+s.a||80,s:+s.s||90,dec:s.dec==1?1:0};
+  else x.scale={min:+s.min||0,max:+s.max||100,b:+s.b||60,a:+s.a||80,s:+s.s||90,dec:s.dec==1?1:0};if(!o.scale26){Object.assign(x.scale,{min:20,max:100,b:60,a:80,s:90})}x.scale26=1;
   return x}
 const DEFAULT=JSON.parse($('#data').textContent);
 let S=norm(JSON.parse(JSON.stringify(DEFAULT)));
